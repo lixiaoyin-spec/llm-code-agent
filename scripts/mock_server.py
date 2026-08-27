@@ -7,7 +7,7 @@
 
 用法（两个终端）：
   python scripts/mock_server.py --port 8765 --scenario demo
-  python agent.py "修复 demo 里的 bug 并补充单元测试" -w demo \
+  python agent.py "给 wordfreq.py 增加一个 --top N 命令行参数：按词频从高到低只输出前 N 个词（默认输出全部），并补充对应的单元测试，运行测试确保全部通过" -w demo \
       --base-url http://127.0.0.1:8765/api --api-key mock --auto-approve
 """
 
@@ -115,7 +115,57 @@ def generic_script(count: int, body: dict) -> list[dict]:
     return chunks
 
 
-SCENARIOS = {"demo": demo_script, "generic": generic_script}
+
+TOPN_WORDFREQ = "\"\"\"统计一段英文文本中每个单词出现的次数（忽略大小写与标点）。\"\"\"\n\nimport re\nimport sys\nimport argparse\n\n\ndef count_words(text: str, top: int = None) -> dict[str, int]:\n    words = re.findall(r\"[A-Za-z]+\", text)\n    counts: dict[str, int] = {}\n    for word in words:\n        key = word.lower()\n        counts[key] = counts.get(key, 0) + 1\n    \n    # 按词频从高到低排序，词频相同时按字母顺序排序\n    sorted_counts = dict(sorted(counts.items(), key=lambda x: (-x[1], x[0])))\n    \n    # 如果指定了top参数，只返回前N个\n    if top is not None and top > 0:\n        # 取前top个，如果top大于实际数量则返回全部\n        items = list(sorted_counts.items())[:top]\n        return dict(items)\n    elif top is not None and top <= 0:\n        # top <= 0 时返回空字典\n        return {}\n    \n    return sorted_counts\n\n\ndef main():\n    parser = argparse.ArgumentParser(description=\"统计英文单词出现频率\")\n    parser.add_argument(\"--top\", type=int, default=None, \n                       help=\"只输出前N个高频词（默认输出全部）\")\n    args = parser.parse_args()\n    \n    sample = sys.stdin.read() if not sys.stdin.isatty() else \"Hello, hello world!\"\n    result = count_words(sample, args.top)\n    print(result)\n\n\nif __name__ == \"__main__\":\n    main()\n"
+
+TOPN_TESTS = "\"\"\"单元测试：统计英文单词出现次数\"\"\"\n\nimport unittest\nfrom wordfreq import count_words\n\n\nclass TestWordFreq(unittest.TestCase):\n    def test_empty_text(self):\n        \"\"\"测试空文本\"\"\"\n        result = count_words(\"\")\n        self.assertEqual(result, {})\n    \n    def test_single_word(self):\n        \"\"\"测试单个单词\"\"\"\n        result = count_words(\"hello\")\n        self.assertEqual(result, {\"hello\": 1})\n    \n    def test_case_insensitive(self):\n        \"\"\"测试大小写不敏感\"\"\"\n        result = count_words(\"Hello hello HELLO\")\n        self.assertEqual(result, {\"hello\": 3})\n    \n    def test_with_punctuation(self):\n        \"\"\"测试包含标点符号\"\"\"\n        result = count_words(\"Hello, world! Hello, everyone.\")\n        self.assertEqual(result, {\"hello\": 2, \"world\": 1, \"everyone\": 1})\n    \n    def test_mixed_content(self):\n        \"\"\"测试混合内容\"\"\"\n        result = count_words(\"The quick brown fox jumps over the lazy dog. The dog was not amused.\")\n        expected = {\n            \"the\": 3, \"quick\": 1, \"brown\": 1, \"fox\": 1, \n            \"jumps\": 1, \"over\": 1, \"lazy\": 1, \"dog\": 2, \n            \"was\": 1, \"not\": 1, \"amused\": 1\n        }\n        self.assertEqual(result, expected)\n    \n    def test_numbers_and_symbols(self):\n        \"\"\"测试数字和符号被忽略\"\"\"\n        result = count_words(\"123 test 456 test! @#$ test\")\n        self.assertEqual(result, {\"test\": 3})\n    \n    def test_sorted_output(self):\n        \"\"\"测试输出按字母顺序排序\"\"\"\n        result = count_words(\"zebra apple banana apple zebra\")\n        expected = {\"apple\": 2, \"banana\": 1, \"zebra\": 2}\n        self.assertEqual(result, expected)\n    \n    def test_top_parameter(self):\n        \"\"\"测试top参数功能\"\"\"\n        text = \"apple banana apple orange banana apple orange orange\"\n        # 不限制top，应该返回所有词（按词频排序）\n        result = count_words(text)\n        expected = {\"apple\": 3, \"orange\": 3, \"banana\": 2}\n        self.assertEqual(result, expected)\n        \n        # 限制top=2，应该返回前2个高频词\n        result_top2 = count_words(text, top=2)\n        expected_top2 = {\"apple\": 3, \"orange\": 3}\n        self.assertEqual(result_top2, expected_top2)\n        \n        # 限制top=1，应该返回最高频词\n        result_top1 = count_words(text, top=1)\n        expected_top1 = {\"apple\": 3}\n        self.assertEqual(result_top1, expected_top1)\n        \n        # 限制top=0，应该返回空字典\n        result_top0 = count_words(text, top=0)\n        self.assertEqual(result_top0, {})\n        \n        # 限制top大于实际词数，应该返回全部\n        result_top10 = count_words(text, top=10)\n        expected_top10 = {\"apple\": 3, \"orange\": 3, \"banana\": 2}\n        self.assertEqual(result_top10, expected_top10)\n    \n    def test_top_parameter_with_ties(self):\n        \"\"\"测试top参数处理词频相同的情况\"\"\"\n        text = \"a a b b c d\"\n        # top=3，应该返回前3个（a和b都是2次，c是1次）\n        result = count_words(text, top=3)\n        expected = {\"a\": 2, \"b\": 2, \"c\": 1}\n        self.assertEqual(result, expected)\n        \n        # top=2，应该返回前2个（a和b都是2次）\n        result = count_words(text, top=2)\n        expected = {\"a\": 2, \"b\": 2}\n        self.assertEqual(result, expected)\n\n\nif __name__ == \"__main__\":\n    unittest.main()"
+
+
+def topn_script(count: int, body: dict) -> list[dict]:
+    """新增 --top N 功能任务的剧本（基于真实模型产出的最终文件状态）。"""
+    chunks: list[dict] = []
+    if count == 1:
+        chunks.append({"choices": [{"index": 0, "delta": {"content": "我先看一下目录结构。"}}]})
+        args = '{"path": "."}'
+        chunks.append({"choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "id": "call_1", "type": "function", "function": {"name": "list_files", "arguments": args[:6]}}]}}]})
+        chunks.append({"choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "function": {"arguments": args[6:]}}]}}]})
+        chunks.append({"choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]})
+    elif count == 2:
+        chunks.append({"choices": [{"index": 0, "delta": {"content": "看看 wordfreq.py 的现状。"}}]})
+        args = '{"path": "wordfreq.py"}'
+        chunks.append({"choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "id": "call_2", "type": "function", "function": {"name": "read_file", "arguments": args[:8]}}]}}]})
+        chunks.append({"choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "function": {"arguments": args[8:]}}]}}]})
+        chunks.append({"choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]})
+    elif count == 3:
+        chunks.append({"choices": [{"index": 0, "delta": {"content": "再看看现有测试。"}}]})
+        args = '{"path": "test_wordfreq.py"}'
+        chunks.append({"choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "id": "call_3", "type": "function", "function": {"name": "read_file", "arguments": args[:8]}}]}}]})
+        chunks.append({"choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "function": {"arguments": args[8:]}}]}}]})
+        chunks.append({"choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]})
+    elif count == 4:
+        chunks.append({"choices": [{"index": 0, "delta": {"content": "现在给 wordfreq.py 增加 --top N 参数。"}}]})
+        args = json.dumps({"path": "wordfreq.py", "content": TOPN_WORDFREQ}, ensure_ascii=False)
+        chunks.append({"choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "id": "call_4", "type": "function", "function": {"name": "write_file", "arguments": args[:40]}}]}}]})
+        chunks.append({"choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "function": {"arguments": args[40:]}}]}}]})
+        chunks.append({"choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]})
+    elif count == 5:
+        chunks.append({"choices": [{"index": 0, "delta": {"content": "补充对应的单元测试。"}}]})
+        args = json.dumps({"path": "test_wordfreq.py", "content": TOPN_TESTS}, ensure_ascii=False)
+        chunks.append({"choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "id": "call_5", "type": "function", "function": {"name": "write_file", "arguments": args[:40]}}]}}]})
+        chunks.append({"choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "function": {"arguments": args[40:]}}]}}]})
+        chunks.append({"choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]})
+    elif count == 6:
+        chunks.append({"choices": [{"index": 0, "delta": {"content": "运行测试验证。"}}]})
+        args = '{"command": "python -m pytest test_wordfreq.py -v", "timeout": 120}'
+        chunks.append({"choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "id": "call_6", "type": "function", "function": {"name": "run_command", "arguments": args[:50]}}]}}]})
+        chunks.append({"choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "function": {"arguments": args[50:]}}]}}]})
+        chunks.append({"choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]})
+    else:
+        chunks.append({"choices": [{"index": 0, "delta": {"content": "任务完成：已为 wordfreq.py 增加 --top N 参数并补充单元测试，pytest 全部通过。"}}]})
+        chunks.append({"choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]})
+    return chunks
+
+SCENARIOS = {"demo": demo_script, "generic": generic_script, "topn": topn_script}
 
 
 class MockHandler(BaseHTTPRequestHandler):
