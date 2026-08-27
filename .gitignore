@@ -9,3 +9,4 @@ config.json
 .coding-agent.json
 *.log
 推免考核题目学生版.pdf
+.pytest_cache/

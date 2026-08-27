@@ -45,7 +45,7 @@ export ZHIPU_API_KEY=你的Key
 
 ```bash
 # 一次性任务
-python agent.py "修复 demo 里的 bug 并补充单元测试" --workspace demo
+python agent.py "给 wordfreq.py 增加一个 --top N 命令行参数：按词频从高到低只输出前 N 个词（默认输出全部），并补充对应的单元测试，运行测试确保全部通过" --workspace demo
 
 # 交互模式（内置命令 /help /clear /compact /stats /exit）
 python agent.py
@@ -54,8 +54,8 @@ python agent.py
 没有网络或 Key 时，可以用内置的模拟服务端离线演练完整流程（开发/录制演示用）：
 
 ```bash
-python scripts/mock_server.py --port 8765 --scenario demo
-python agent.py "修复 demo 里的 bug 并补充单元测试" -w demo \
+python scripts/mock_server.py --port 8765 --scenario topn
+python agent.py "给 wordfreq.py 增加一个 --top N 命令行参数：按词频从高到低只输出前 N 个词（默认输出全部），并补充对应的单元测试，运行测试确保全部通过" -w demo \
     --base-url http://127.0.0.1:8765/api --api-key mock --auto-approve
 ```
 
@@ -104,7 +104,7 @@ coding_agent/
   ui.py                     终端交互与人工确认器
   session.py                会话 JSONL 保存/恢复
 scripts/mock_server.py      离线模拟服务端（演练用，非 agent 组成部分）
-demo/                       演示任务（带 bug 的 wordfreq.py）
+demo/                       演示任务现场（wordfreq.py 与单元测试）
 tests/                      47 个离线单元测试
 ```
 

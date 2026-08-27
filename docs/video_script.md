@@ -5,8 +5,8 @@
 | 时间 | 内容 | 画面 |
 | --- | --- | --- |
 | 0:00-0:10 | 开场：一句话介绍项目（"这是我独立实现的编程智能体，它能自主读写文件、执行命令完成编程任务"） | 本人或终端界面 |
-| 0:10-0:20 | 布置任务：展示 demo/wordfreq.py（先说它有个 bug），输入任务指令并回车 | 终端 |
-| 0:20-1:05 | agent 执行全过程（录制时 2-4 倍加速）：列目录 -> 读文件定位 bug -> 修复并新增单元测试 -> 运行测试通过 -> 输出总结 | 终端 |
+| 0:10-0:20 | 布置任务：展示 demo/wordfreq.py 现状，输入新功能任务指令并回车 | 终端 |
+| 0:20-1:05 | agent 执行全过程（录制时 2-4 倍加速）：读文件 -> 新增 --top 功能 -> 补测试 -> 测试失败并自纠 -> 全绿 -> 实测命令行 -> 输出总结 | 终端 |
 | 1:05-1:40 | 讲解实现（画外音 + 结构图/代码滚动）：主循环"调用模型->解析输出->本地执行工具->结果回传"；上下文压缩；终止条件；命令人工确认等安全设计 | 结构图或代码 |
 | 1:40-2:00 | 一句设计理念收尾（"不用任何 agent 框架，核心逻辑全部自研，每个设计决策都可解释"） | 仓库/终端 |
 
@@ -15,17 +15,18 @@
 在仓库根目录运行（先配置好 ZHIPU_API_KEY 环境变量）：
 
 ```bash
-python agent.py "修复 demo 里的 bug 并补充单元测试" --workspace demo
+python agent.py "给 wordfreq.py 增加一个 --top N 命令行参数：按词频从高到低只输出前 N 个词（默认输出全部），并补充对应的单元测试，运行测试确保全部通过" --workspace demo
 ```
 
 - 执行过程中会出现 run_command 确认提示，按 y（或录制时加 --auto-approve 让画面更流畅，讲解时说明"生产默认人工确认，演示为流畅放行"）
-- 预期结果：agent 自己写出 demo/test_wordfreq.py（4 个用例）并全部通过
+- 预期过程（已用真实模型验证）：读文件 -> 修改 wordfreq.py -> 补充测试 -> 运行测试出现 1-2 次失败 -> agent 自行分析并修复 -> 全部通过 -> --help 与 --top 实测 -> 输出总结
+- 这段"出错-自纠"恰好展示错误回传闭环，讲解时值得强调
 
 录制前预演（不烧 token、不出网络问题）：
 
 ```bash
-python scripts/mock_server.py --port 8765 --scenario demo
-python agent.py "修复 demo 里的 bug 并补充单元测试" -w demo --base-url http://127.0.0.1:8765/api --api-key mock --auto-approve
+python scripts/mock_server.py --port 8765 --scenario topn
+python agent.py "给 wordfreq.py 增加一个 --top N 命令行参数：按词频从高到低只输出前 N 个词（默认输出全部），并补充对应的单元测试，运行测试确保全部通过" -w demo --base-url http://127.0.0.1:8765/api --api-key mock --auto-approve
 ```
 
 ## 讲解要点（对应面试高频问题）
