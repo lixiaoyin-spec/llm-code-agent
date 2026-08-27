@@ -87,7 +87,7 @@ def run_repl(agent: Agent, ui: UI, session_path: Path | None) -> None:
     ui.info("输入任务描述开始（/help 查看内置命令，/exit 退出）。")
     while True:
         try:
-            line = input(ui.paint("cyan", "你> ")).strip()
+            line = ui.task_input().strip()
         except (EOFError, KeyboardInterrupt):
             print()
             break

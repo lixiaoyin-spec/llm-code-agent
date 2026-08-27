@@ -137,6 +137,16 @@ class LoopTest(unittest.TestCase):
         self.assertEqual(stats.stop_reason, "plan_rejected")
         self.assertEqual(stats.turns, 1)
 
+    def test_turn_header_only_in_verbose(self):
+        agent, store, ui = make_agent(self.tmp, ScriptedClient([turn("完成", [])]))
+        agent.run("任务")
+        self.assertNotIn("第 1 轮", ui.stream.getvalue())
+        agent2, store2, ui2 = make_agent(
+            self.tmp, ScriptedClient([turn("完成", [])]), verbose=True
+        )
+        agent2.run("任务")
+        self.assertIn("第 1 轮", ui2.stream.getvalue())
+
     def test_auth_error_stops(self):
         client = RaisingClient(LLMError("auth", "invalid key"))
         agent, store, ui = make_agent(self.tmp, client)

@@ -16,6 +16,18 @@ _COLORS = {
     "reset": "\x1b[0m",
 }
 
+_BOX_WIDTH = 76
+
+
+def _display_width(text: str) -> int:
+    """终端显示宽度：中日韩等全角字符按 2 列计算，用于对齐边框。"""
+    return sum(2 if ord(ch) > 0x2E80 else 1 for ch in text)
+
+
+def _box_line(content: str, left: str, right: str, fill: str) -> str:
+    inner = _BOX_WIDTH - 2
+    return left + content + fill * max(0, inner - _display_width(content)) + right
+
 
 class UI:
     def __init__(self, color: bool = True, stream: TextIO | None = None):
@@ -112,6 +124,22 @@ class UI:
             return input(prompt).strip()
         except (EOFError, KeyboardInterrupt):
             return ""
+
+    def task_input(self, label: str = "你") -> str:
+        """带上下边框的任务输入框。EOF 时抛 EOFError，KeyboardInterrupt 原样上抛。"""
+        hint = " 输入任务（/help 查看命令，/exit 退出）"
+        self.newline()
+        self._write(self.paint("dim", _box_line(hint, "┌", "┐", "─") + "\n"))
+        eof = False
+        try:
+            text = input(self.paint("cyan", "│ " + label + " › "))
+        except EOFError:
+            text = ""
+            eof = True
+        self._write(self.paint("dim", _box_line("", "└", "┘", "─") + "\n"))
+        if eof:
+            raise EOFError
+        return text
 
 
 class TerminalApprover:

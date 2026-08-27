@@ -73,7 +73,8 @@ class Agent:
                     self.ui.warn("压缩未执行（摘要调用失败），继续运行。")
 
             self.stats.turns += 1
-            self.ui.turn_header(self.stats.turns, self.config.max_turns)
+            if self.config.verbose:
+                self.ui.turn_header(self.stats.turns, self.config.max_turns)
             try:
                 turn = self.client.chat(
                     self.store.api_messages(),
