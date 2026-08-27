@@ -165,12 +165,14 @@ class UI:
 
     def _fancy_task_input(self, label: str) -> str:
         width = max(40, min(shutil.get_terminal_size(fallback=(76, 24)).columns, 300))
-        top = self.paint("dim", _fill_line(" 输入任务（/help 查看命令，/exit 退出）", width))
+        caption = self.paint("dim", " 输入任务（/help 查看命令，/exit 退出）")
+        top = self.paint("dim", "─" * width)
         bottom = self.paint("dim", "─" * width)
         hints = self.paint(
             "dim", _two_sides(" ? /help 查看命令 · /exit 退出", "● /clear 清空 · /stats 统计", width)
         )
-        self.stream.write(top + "\n\n" + bottom + "\n" + hints + "\n\x1b[3A")
+        # 布局：提示行 / 上边界 / 输入行 / 下边界 / 快捷键行，光标上移回到输入行
+        self.stream.write(caption + "\n" + top + "\n\n" + bottom + "\n" + hints + "\n\x1b[3A")
         self.stream.flush()
         eof = False
         try:
