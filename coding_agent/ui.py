@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 from typing import TextIO
 
@@ -27,6 +28,17 @@ def _display_width(text: str) -> int:
 def _box_line(content: str, left: str, right: str, fill: str) -> str:
     inner = _BOX_WIDTH - 2
     return left + content + fill * max(0, inner - _display_width(content)) + right
+
+
+def _fill_line(text: str, width: int, fill: str = "─") -> str:
+    """文本在左，填充字符一直延伸到指定宽度。"""
+    return text + fill * max(0, width - _display_width(text))
+
+
+def _two_sides(left: str, right: str, width: int) -> str:
+    """左右两端文本，中间用空格填满整行。"""
+    gap = max(1, width - _display_width(left) - _display_width(right))
+    return left + " " * gap + right
 
 
 class UI:
@@ -126,33 +138,48 @@ class UI:
             return ""
 
     def task_input(self, label: str = "你") -> str:
-        """带上下边框的任务输入框。EOF 时抛 EOFError，KeyboardInterrupt 原样上抛。
+        """Claude Code 风格的全宽输入栏。EOF 时抛 EOFError，KeyboardInterrupt 原样上抛。
 
-        真实交互终端里：先画出完整边框（上、中空行、下），再用 ANSI 光标上移
-        回到中间行等待输入，保证输入前边框就是完整的；管道/重定向等非交互
-        场景回退为"先上框、回车后补下框"，避免输出转义序列。
+        真实交互终端里：按终端实际宽度画出上横线（含任务提示）、空输入行、
+        下横线、快捷键提示行，再用 ANSI 光标上移回到输入行等待输入；
+        管道/重定向等非交互场景回退为固定宽度角框，避免输出转义序列。
         """
-        hint = " 输入任务（/help 查看命令，/exit 退出）"
         self.newline()
+        if self.color and self.stream is sys.stdout:
+            return self._fancy_task_input(label)
+        hint = " 输入任务（/help 查看命令，/exit 退出）"
         top = self.paint("dim", _box_line(hint, "┌", "┐", "─"))
         bottom = self.paint("dim", _box_line("", "└", "┘", "─"))
-        fancy = self.color and self.stream is sys.stdout
-        if fancy:
-            self.stream.write(top + "\n\n" + bottom + "\n\x1b[2A")
-            self.stream.flush()
-        else:
-            self._write(top + "\n")
+        self._write(top + "\n")
         eof = False
         try:
             text = input(self.paint("cyan", "│ " + label + " › "))
         except EOFError:
             text = ""
             eof = True
-        if fancy:
-            self.stream.write("\n")
-            self.stream.flush()
-        else:
-            self._write(bottom + "\n")
+        self._write(bottom + "\n")
+        self._mid_line = False
+        if eof:
+            raise EOFError
+        return text
+
+    def _fancy_task_input(self, label: str) -> str:
+        width = max(40, min(shutil.get_terminal_size(fallback=(76, 24)).columns, 300))
+        top = self.paint("dim", _fill_line(" 输入任务（/help 查看命令，/exit 退出）", width))
+        bottom = self.paint("dim", "─" * width)
+        hints = self.paint(
+            "dim", _two_sides(" ? /help 查看命令 · /exit 退出", "● /clear 清空 · /stats 统计", width)
+        )
+        self.stream.write(top + "\n\n" + bottom + "\n" + hints + "\n\x1b[3A")
+        self.stream.flush()
+        eof = False
+        try:
+            text = input(self.paint("cyan", label + " › "))
+        except EOFError:
+            text = ""
+            eof = True
+        self.stream.write("\n\n")
+        self.stream.flush()
         self._mid_line = False
         if eof:
             raise EOFError
