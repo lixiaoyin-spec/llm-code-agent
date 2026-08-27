@@ -59,6 +59,16 @@ python agent.py "给 wordfreq.py 增加一个 --top N 命令行参数：按词�
     --base-url http://127.0.0.1:8765/api --api-key mock --auto-approve
 ```
 
+## 快速启动（可选）
+
+Windows PowerShell 用户可在个人配置文件中定义 `agent` 函数，之后直接输入 `agent` 即可启动（任意参数透传）：
+
+```powershell
+function agent { python "D:\你的路径\agent.py" @args }
+```
+
+用法示例：`agent`（交互模式）、`agent "任务描述" -w demo`、`agent --resume <会话名>`。
+
 ## 命令行参数
 
 | 参数 | 说明 | 默认 |
@@ -77,6 +87,7 @@ python agent.py "给 wordfreq.py 增加一个 --top N 命令行参数：按词�
 | `--context-budget` | 触发历史压缩的 token 预算 | 24000 |
 | `--resume SESSION` | 恢复会话 | - |
 | `--list-sessions` | 列出已保存会话 | - |
+| `-v, --verbose` | 打印调试信息与每轮标题（不会打印 API Key） | 关 |
 | `--no-save` | 不保存会话 | 关 |
 
 ## 工具一览
