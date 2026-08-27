@@ -1,7 +1,7 @@
 编程智能体（coding-agent）—— 软件工程专业推免项目
 
 一、仓库地址
-（请替换为你的公开仓库地址，如 https://github.com/你的用户名/coding-agent）
+https://github.com/lixiaoyin-spec/llm-code-agent
 
 二、如何运行
 1. 安装依赖：pip install -r requirements.txt（仅需 requests，Python 3.10+）
