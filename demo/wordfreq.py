@@ -8,7 +8,7 @@ def count_words(text: str) -> dict[str, int]:
     counts: dict[str, int] = {}
     for word in words:
         key = word.lower()
-        counts[key] = counts.get(key, 0)
+        counts[key] = counts.get(key, 0) + 1
     return dict(sorted(counts.items()))
 
 
