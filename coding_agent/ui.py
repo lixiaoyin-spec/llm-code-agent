@@ -126,17 +126,34 @@ class UI:
             return ""
 
     def task_input(self, label: str = "你") -> str:
-        """带上下边框的任务输入框。EOF 时抛 EOFError，KeyboardInterrupt 原样上抛。"""
+        """带上下边框的任务输入框。EOF 时抛 EOFError，KeyboardInterrupt 原样上抛。
+
+        真实交互终端里：先画出完整边框（上、中空行、下），再用 ANSI 光标上移
+        回到中间行等待输入，保证输入前边框就是完整的；管道/重定向等非交互
+        场景回退为"先上框、回车后补下框"，避免输出转义序列。
+        """
         hint = " 输入任务（/help 查看命令，/exit 退出）"
         self.newline()
-        self._write(self.paint("dim", _box_line(hint, "┌", "┐", "─") + "\n"))
+        top = self.paint("dim", _box_line(hint, "┌", "┐", "─"))
+        bottom = self.paint("dim", _box_line("", "└", "┘", "─"))
+        fancy = self.color and self.stream is sys.stdout
+        if fancy:
+            self.stream.write(top + "\n\n" + bottom + "\n\x1b[2A")
+            self.stream.flush()
+        else:
+            self._write(top + "\n")
         eof = False
         try:
             text = input(self.paint("cyan", "│ " + label + " › "))
         except EOFError:
             text = ""
             eof = True
-        self._write(self.paint("dim", _box_line("", "└", "┘", "─") + "\n"))
+        if fancy:
+            self.stream.write("\n")
+            self.stream.flush()
+        else:
+            self._write(bottom + "\n")
+        self._mid_line = False
         if eof:
             raise EOFError
         return text
