@@ -15,7 +15,9 @@ from __future__ import annotations
 import locale
 import os
 import re
+import signal
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -361,6 +363,31 @@ def _tool_search_files(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     return ToolResult("search_files", True, output)
 
 
+def _kill_process_tree(proc: subprocess.Popen) -> None:
+    """终止整个进程树：Windows 用 taskkill /T /F，POSIX 用进程组信号。"""
+    if os.name == "nt":
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                capture_output=True,
+                timeout=10,
+                check=False,
+            )
+            return
+        except (OSError, subprocess.SubprocessError):
+            pass
+    else:
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            return
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+    try:
+        proc.kill()
+    except OSError:
+        pass
+
+
 def _tool_run_command(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     command = str(args.get("command") or "").strip()
     if not command:
@@ -380,24 +407,52 @@ def _tool_run_command(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
 
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
     start = time.monotonic()
+    timed_out = False
+    returncode: int | None = None
+    stdout_bytes = b""
+    stderr_bytes = b""
     try:
-        proc = subprocess.run(
-            command, shell=True, cwd=str(ctx.workspace), capture_output=True, timeout=timeout, env=env
-        )
-    except subprocess.TimeoutExpired:
-        elapsed = int((time.monotonic() - start) * 1000)
-        return ToolResult("run_command", False, f"命令执行超时（>{timeout}s），进程已被终止。", duration_ms=elapsed)
+        # 输出写入临时文件而非管道：即使孙进程存活，也不会因为管道句柄
+        # 未关闭导致主进程永久阻塞（Windows 上的已知陷阱）。
+        with tempfile.TemporaryFile() as out_file, tempfile.TemporaryFile() as err_file:
+            popen_kwargs: dict[str, Any] = {
+                "shell": True,
+                "cwd": str(ctx.workspace),
+                "stdout": out_file,
+                "stderr": err_file,
+                "env": env,
+            }
+            if os.name != "nt":
+                popen_kwargs["start_new_session"] = True  # 独立进程组，便于整组击杀
+            proc = subprocess.Popen(command, **popen_kwargs)
+            try:
+                returncode = proc.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                _kill_process_tree(proc)
+                try:
+                    proc.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    pass
+            out_file.seek(0)
+            err_file.seek(0)
+            stdout_bytes = out_file.read()
+            stderr_bytes = err_file.read()
     except OSError as exc:
         elapsed = int((time.monotonic() - start) * 1000)
         return ToolResult("run_command", False, f"命令无法执行：{exc}", duration_ms=elapsed)
 
-    stdout, _ = _truncate(_decode_output(proc.stdout), ctx.output_chars)
-    stderr, _ = _truncate(_decode_output(proc.stderr), ctx.output_chars)
-    output = "\n".join(
-        [f"退出码：{proc.returncode}", "--- stdout ---", stdout or "(无输出)", "--- stderr ---", stderr or "(无输出)"]
-    )
+    stdout, _ = _truncate(_decode_output(stdout_bytes), ctx.output_chars)
+    stderr, _ = _truncate(_decode_output(stderr_bytes), ctx.output_chars)
+    if timed_out:
+        status_line = f"退出码：超时（>{timeout}s，已终止整个进程树）"
+        ok = False
+    else:
+        status_line = f"退出码：{returncode}"
+        ok = returncode == 0
+    output = "\n".join([status_line, "--- stdout ---", stdout or "(无输出)", "--- stderr ---", stderr or "(无输出)"])
     elapsed = int((time.monotonic() - start) * 1000)
-    return ToolResult("run_command", proc.returncode == 0, output, duration_ms=elapsed)
+    return ToolResult("run_command", ok, output, duration_ms=elapsed)
 
 
 _IMPLEMENTATIONS: dict[str, Callable[[dict[str, Any], ToolContext], ToolResult]] = {

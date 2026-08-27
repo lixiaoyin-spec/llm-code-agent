@@ -80,6 +80,8 @@ class UI:
 
     def stream_reasoning(self, chunk: str) -> None:
         if not getattr(self, "_reasoning_started", False):
+            if not chunk.strip():
+                return  # 丢弃开头无可见内容的空白片段，避免出现孤立的"思考:"
             self.newline()
             self._write(self.paint("dim", "思考: "))
             self._reasoning_started = True

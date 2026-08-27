@@ -99,7 +99,7 @@ function agent { python "D:\你的路径\agent.py" @args }
 | `write_file` | 创建/覆盖文件 | 路径沙箱 |
 | `replace_in_file` | 唯一匹配替换 | 要求 old_text 恰好出现一次 |
 | `search_files` | 正则搜索内容 | 跳过 .git/node_modules 等目录 |
-| `run_command` | 执行命令 | 人工确认 + 危险命令防呆拦截 + 超时终止 + 输出截断 |
+| `run_command` | 执行命令 | 人工确认 + 危险命令防呆拦截 + 超时终止整个进程树 + 输出截断 |
 
 ## 架构
 
