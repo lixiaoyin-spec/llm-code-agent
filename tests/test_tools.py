@@ -114,7 +114,7 @@ class ToolsTest(unittest.TestCase):
         self.assertLess(result.duration_ms, 5000)
 
     def test_run_command_timeout_keeps_partial_output(self):
-        command = f'"{sys.executable}" -c "import sys, time; print('started'); sys.stdout.flush(); time.sleep(10)"'
+        command = f'"{sys.executable}" -c "import sys, time; print(\'started\'); sys.stdout.flush(); time.sleep(10)"'
         result = self.call("run_command", {"command": command, "timeout": 1})
         self.assertFalse(result.ok)
         self.assertIn("超时", result.output)
