@@ -159,7 +159,7 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "type": "object",
                 "properties": {
                     "command": {"type": "string", "description": "要执行的完整命令"},
-                    "timeout": {"type": "integer", "description": "超时秒数，默认 120，上限 600"},
+                    "timeout": {"type": "integer", "description": "超时秒数，默认 30，上限 600；长驻服务探测建议传 10"},
                 },
                 "required": ["command"],
             },
@@ -398,7 +398,7 @@ def _tool_run_command(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
             raise ToolError(
                 f"命令被安全策略拦截（命中危险片段 {fragment!r}）。如确需执行，请自行在终端运行并说明原因。"
             )
-    timeout = _int_arg(args, "timeout", 120, 1, ctx.command_max_timeout)
+    timeout = _int_arg(args, "timeout", 30, 1, ctx.command_max_timeout)
 
     verdict = ctx.approver.approve(command)
     if verdict in ("no", "skip"):
@@ -451,6 +451,8 @@ def _tool_run_command(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
         status_line = f"退出码：{returncode}"
         ok = returncode == 0
     output = "\n".join([status_line, "--- stdout ---", stdout or "(无输出)", "--- stderr ---", stderr or "(无输出)"])
+    if timed_out:
+        output += "\n[重要] 该命令及其子进程已被强制终止，任何服务都不会继续运行；如需后台运行：Windows 用 start \"\" cmd /c \"命令 > 日志 2>&1\"，macOS/Linux 用 nohup 命令 > 日志 2>&1 &，随后用 curl 探测端口验证。"
     elapsed = int((time.monotonic() - start) * 1000)
     return ToolResult("run_command", ok, output, duration_ms=elapsed)
 

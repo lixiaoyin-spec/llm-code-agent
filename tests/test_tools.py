@@ -111,6 +111,7 @@ class ToolsTest(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertIn("超时", result.output)
         self.assertIn("整个进程树", result.output)
+        self.assertIn("已被强制终止", result.output)
         self.assertLess(result.duration_ms, 5000)
 
     def test_run_command_timeout_keeps_partial_output(self):
