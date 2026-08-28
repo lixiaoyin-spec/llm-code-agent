@@ -1,4 +1,4 @@
-编程智能体（coding-agent）—— 软件工程专业推免项目
+Nihue——编程智能体（软件工程专业推免项目）
 
 一、仓库地址
 https://github.com/lixiaoyin-spec/llm-code-agent
@@ -11,7 +11,7 @@ https://github.com/lixiaoyin-spec/llm-code-agent
    也可写入 config.local.json（已被 .gitignore 排除，不会入库）
 3. 运行：
    python agent.py "你的编程任务" --workspace demo
-   python agent.py            # 交互模式，内置 /help /clear /compact /stats /exit
+   python agent.py            # 交互模式，内置 /help /clear /compact /sessions /stats /exit
    其它参数见 --help；无 Key 时配合 scripts/mock_server.py 可离线演练。
 
 三、特色功能
@@ -25,4 +25,4 @@ https://github.com/lixiaoyin-spec/llm-code-agent
 四、其它说明
 - 模型默认 glm-4.5-air，可用 --model 换成 glm-4-plus 等；--base-url 可切换任何 OpenAI 兼容服务；
 - 对话历史管理、工具定义与本地执行、输出解析、循环终止、错误处理等核心逻辑全部自行实现，未使用任何 agent 框架/SDK；
-- 测试：python -m unittest discover -s tests（47 个用例，离线可跑）。
+- 测试：python -m unittest discover -s tests（49 个用例，离线可跑）。

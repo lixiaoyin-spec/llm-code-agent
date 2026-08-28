@@ -35,14 +35,16 @@ HELP_TEXT = """内置命令：
   /help     显示本帮助
   /clear    清空对话历史（保留系统提示）
   /compact  立即压缩对话历史
+  /sessions 列出已保存会话
+  /sessions resume <名称>  切换会话
   /stats    显示当前任务统计
   /exit     保存会话并退出"""
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="agent",
-        description="编程智能体：与大语言模型交互，自主读写文件、执行命令完成任务。",
+        prog="nihue",
+        description="Nihue：与大语言模型交互，自主读写文件、执行命令完成编程任务的智能体。",
     )
     parser.add_argument("task", nargs="*", help="任务描述（留空进入交互模式）")
     parser.add_argument("-w", "--workspace", default=".", help="工作目录（文件操作限制在内），默认当前目录")
@@ -109,6 +111,24 @@ def run_repl(agent: Agent, ui: UI, session_path: Path | None) -> None:
         if line == "/stats":
             ui.info(format_stats(agent.store, agent.stats))
             continue
+        if line == "/sessions":
+            for entry in list_sessions():
+                ui.info(entry)
+            continue
+        if line.startswith("/sessions resume "):
+            try:
+                path = resolve_session(line.split(maxsplit=2)[2])
+            except FileNotFoundError as exc:
+                ui.warn(str(exc))
+                continue
+            agent.store = load_session(path, agent.store)
+            agent.stats = RunStats()
+            session_path = path
+            ui.info(f"已切换会话：{path.name}（{len(agent.store.messages)} 条消息）")
+            continue
+        if line.startswith("/sessions"):
+            ui.warn("用法：/sessions（列出）或 /sessions resume <会话名或前缀>")
+            continue
         if line == "/help":
             ui.info(HELP_TEXT)
             continue
@@ -136,6 +156,8 @@ def main(argv: list[str] | None = None) -> int:
         for line in list_sessions():
             print(line)
         return 0
+
+    ui.logo()
 
     client = LLMClient(config)
     store = MessageStore(

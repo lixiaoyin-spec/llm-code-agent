@@ -19,6 +19,14 @@ _COLORS = {
 
 _BOX_WIDTH = 76
 
+LOGO = r"""
+ _   _  ___  _   _  _   _  _____
+| \ | | |_ _| | | | | | | | | ____|
+|  \| |  | |  | |_| | | | | |  _|
+| |\  |  | |  |  _  | | |_| | |___
+|_| \_| |___| |_| |_|  \___/  |_____|
+"""
+
 
 def _display_width(text: str) -> int:
     """终端显示宽度：中日韩等全角字符按 2 列计算，用于对齐边框。"""
@@ -73,6 +81,11 @@ class UI:
     def newline(self) -> None:
         if self._mid_line:
             self._write("\n")
+
+    def logo(self) -> None:
+        for line in LOGO.strip("\n").splitlines():
+            self._write(self.paint("cyan", line) + "\n")
+        self._write(self.paint("dim", "Nihue -- 你的编程智能体") + "\n")
 
     # ---- 流式输出 ----
     def stream_text(self, chunk: str) -> None:

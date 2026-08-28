@@ -1,6 +1,6 @@
-# 编程智能体（coding-agent）
+# Nihue -- 编程智能体（coding-agent）
 
-南京大学软件工程专业推免项目：个人独立设计并实现的编程智能体。它通过与智谱 GLM（OpenAI 兼容协议）交互，自主地读写文件、执行命令，完成交给它的编程任务——类似一个简化的 Claude Code / Codex。
+Nihue 是南京大学软件工程专业推免项目作品：个人独立设计并实现的编程智能体。它通过与智谱 GLM（OpenAI 兼容协议）交互，自主地读写文件、执行命令，完成交给它的编程任务——类似一个简化的 Claude Code / Codex。
 
 核心原则：**不依赖任何 agent 框架 / SDK**。仅使用 `requests` 做 HTTP 通信，对话历史与上下文管理、工具定义与本地执行、模型输出解析、循环终止条件、错误处理均为自行实现。
 
@@ -11,7 +11,7 @@
 - 安全：文件路径沙箱（强制工作目录内）、命令执行人工确认（yes/no/always/skip）、危险命令防呆拦截、工具输出截断
 - 上下文管理：启发式 token 估算，超预算自动把早期历史压缩为摘要（保留近期消息），保证消息序列始终合法
 - 主循环：多轮自主迭代、只读工具并行执行、连续重复调用检测、轮数上限、Ctrl+C 中断、API 错误分类与指数退避重试
-- 会话保存 / 恢复：历史落盘为 JSONL，`--resume` 随时续接
+- 会话保存 / 恢复：历史落盘为 JSONL，`--resume` 随时续接；REPL 内 `/sessions` 查看、`/sessions resume <名称>` 切换
 - 计划模式：`--plan` 先输出计划、人工确认后执行
 - 思考过程展示：GLM 的 `reasoning_content` 以灰色实时显示（`--no-reasoning` 关闭）
 
@@ -47,7 +47,7 @@ export ZHIPU_API_KEY=你的Key
 # 一次性任务
 python agent.py "给 wordfreq.py 增加一个 --top N 命令行参数：按词频从高到低只输出前 N 个词（默认输出全部），并补充对应的单元测试，运行测试确保全部通过" --workspace demo
 
-# 交互模式（内置命令 /help /clear /compact /stats /exit）
+# 交互模式（内置命令 /help /clear /compact /sessions /stats /exit）
 python agent.py
 ```
 
@@ -61,13 +61,13 @@ python agent.py "给 wordfreq.py 增加一个 --top N 命令行参数：按词�
 
 ## 快速启动（可选）
 
-Windows PowerShell 用户可在个人配置文件中定义 `agent` 函数，之后直接输入 `agent` 即可启动（任意参数透传）：
+Windows PowerShell 用户可在个人配置文件中定义 `nihue` 函数，之后直接输入 `nihue` 即可启动（任意参数透传）：
 
 ```powershell
-function agent { python "D:\你的路径\agent.py" @args }
+function nihue { python "D:\你的路径\agent.py" @args }
 ```
 
-用法示例：`agent`（交互模式）、`agent "任务描述" -w demo`、`agent --resume <会话名>`。
+用法示例：`nihue`（交互模式）、`nihue "任务描述" -w demo`、`nihue --resume <会话名>`。
 
 ## 命令行参数
 
@@ -116,7 +116,7 @@ coding_agent/
   session.py                会话 JSONL 保存/恢复
 scripts/mock_server.py      离线模拟服务端（演练用，非 agent 组成部分）
 demo/                       演示任务现场（wordfreq.py 与单元测试）
-tests/                      47 个离线单元测试
+tests/                      49 个离线单元测试
 ```
 
 主循环（每轮）：
@@ -146,7 +146,7 @@ tests/                      47 个离线单元测试
 全部测试离线可跑，不依赖网络与 API Key：
 
 ```bash
-python -m unittest discover -s tests -v   # 47 个用例
+python -m unittest discover -s tests -v   # 49 个用例
 ```
 
 覆盖：配置加载与凭据脱敏、SSE 流式解析（本地模拟服务端）、重试与错误分类、路径沙箱、命令确认/拦截/超时、上下文压缩、主循环终止条件、并行执行、计划模式。
