@@ -23,6 +23,7 @@ from coding_agent.loop import Agent, RunStats, format_stats
 from coding_agent.prompts import build_system_prompt
 from coding_agent.skills import SkillRegistry
 from coding_agent.session import (
+    derive_title,
     list_sessions,
     load_session,
     new_session_path,
@@ -126,7 +127,8 @@ def run_repl(agent: Agent, ui: UI, session_path: Path | None, skills: SkillRegis
             agent.store = load_session(path, agent.store)
             agent.stats = RunStats()
             session_path = path
-            ui.info(f"已切换会话：{path.name}（{len(agent.store.messages)} 条消息）")
+            ui.info(f"已切换会话：{entries[choice].title}（{len(agent.store.messages)} 条消息）")
+            ui.show_history(agent.store.messages)
             continue
         if line.startswith("/sessions resume "):
             try:
@@ -137,7 +139,8 @@ def run_repl(agent: Agent, ui: UI, session_path: Path | None, skills: SkillRegis
             agent.store = load_session(path, agent.store)
             agent.stats = RunStats()
             session_path = path
-            ui.info(f"已切换会话：{path.name}（{len(agent.store.messages)} 条消息）")
+            ui.info(f"已切换会话：{derive_title(path)}（{len(agent.store.messages)} 条消息）")
+            ui.show_history(agent.store.messages)
             continue
         if line.startswith("/sessions"):
             ui.warn("用法：/sessions（列出）或 /sessions resume <会话名或前缀>")
@@ -209,7 +212,8 @@ def main(argv: list[str] | None = None) -> int:
                 ui.error(str(exc))
                 return 1
             store = load_session(session_path, store)
-            ui.info(f"已恢复会话：{session_path.name}（{len(store.messages)} 条消息）")
+            ui.info(f"已恢复会话：{derive_title(session_path)}（{len(store.messages)} 条消息）")
+            ui.show_history(store.messages)
         else:
             slug = " ".join(args.task).strip() or "interactive"
             session_path = new_session_path(slug=slug)
