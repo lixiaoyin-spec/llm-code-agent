@@ -48,19 +48,30 @@ class UiTests(unittest.TestCase):
         messages = [
             {"role": "system", "content": "sys"},
             {"role": "user", "content": "你好"},
-            {"role": "assistant", "content": "你好！有什么可以帮你？", "tool_calls": []},
-            {"role": "assistant", "content": "", "tool_calls": [{"id": "c1"}]},
-            {"role": "tool", "tool_call_id": "c1", "content": "工具结果"},
+            {
+                "role": "assistant",
+                "content": "你好！有什么可以帮你？",
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {"name": "list_files", "arguments": '{"path": "."}'},
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": "c1", "name": "list_files", "content": "工具结果"},
             {"role": "user", "content": "再见"},
         ]
         ui.show_history(messages)
         out = stream.getvalue()
         self.assertIn("你 › 你好", out)
         self.assertIn("你好！有什么可以帮你？", out)
-        self.assertIn("调用工具 1 次", out)
-        self.assertNotIn("工具结果", out)
+        self.assertIn(">> list_files", out)
+        self.assertIn("[工具] list_files:", out)
+        self.assertIn("工具结果", out)
         self.assertNotIn("sys", out)
         self.assertIn("你 › 再见", out)
+
 
 
 if __name__ == "__main__":

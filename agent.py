@@ -90,7 +90,7 @@ def cli_overrides(args: argparse.Namespace) -> dict:
     }
 
 
-def run_repl(agent: Agent, ui: UI, session_path: Path | None, skills: SkillRegistry | None = None) -> None:
+def run_repl(agent: Agent, ui: UI, session_path: Path | None, skills: SkillRegistry | None = None) -> Path | None:
     ui.info("输入任务描述开始（/help 查看内置命令，/exit 退出）。")
     while True:
         try:
@@ -162,6 +162,7 @@ def run_repl(agent: Agent, ui: UI, session_path: Path | None, skills: SkillRegis
         if session_path is not None:
             save_session(session_path, agent.store)
 
+    return session_path
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -236,7 +237,7 @@ def main(argv: list[str] | None = None) -> int:
         stats = agent.run(task)
         ui.info(format_stats(agent.store, stats))
     else:
-        run_repl(agent, ui, session_path, skills)
+        session_path = run_repl(agent, ui, session_path, skills)
 
     if session_path is not None:
         save_session(session_path, agent.store)

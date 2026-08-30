@@ -220,10 +220,9 @@ class UI:
         lines.append(self.paint("dim", " ? ↑↓ 选择 · Enter 恢复 · Esc 取消"))
         return "\n".join(lines)
 
-    def show_history(self, messages: list[dict[str, Any]], max_assistant_chars: int = 2000) -> None:
-        """把恢复的会话历史打印出来：用户消息与助手回复全文展示，工具明细折叠。"""
+    def show_history(self, messages: list[dict[str, Any]], max_assistant_chars: int = 2000, max_detail_chars: int = 240) -> None:
+        """回放恢复的会话历史：用户消息与助手回复全文展示，工具调用与结果给出摘要细节。"""
         self.newline()
-        self._write(self.paint("dim", "──── 历史对话（已恢复，继续输入即可接着聊）────\n"))
         for message in messages:
             role = message.get("role")
             if role == "user":
@@ -235,9 +234,19 @@ class UI:
                     if len(content) > max_assistant_chars:
                         content = content[:max_assistant_chars] + "\n[回复过长，中间部分已省略]"
                     self._write(content + "\n")
-                if calls:
-                    self._write(self.paint("dim", f"  （期间调用工具 {len(calls)} 次）\n"))
-        self._write(self.paint("dim", "──── 历史到此结束 ────\n"))
+                for call in calls:
+                    function = call.get("function") or {}
+                    name = function.get("name") or "unknown"
+                    args_preview = " ".join(str(function.get("arguments") or "").split())
+                    if len(args_preview) > max_detail_chars:
+                        args_preview = args_preview[: max_detail_chars - 3] + "..."
+                    self._write(self.paint("cyan", f">> {name}({args_preview})\n"))
+            elif role == "tool":
+                name = str(message.get("name") or "tool")
+                preview = " ".join(str(message.get("content") or "").split())
+                if len(preview) > max_detail_chars:
+                    preview = preview[: max_detail_chars - 3] + "..."
+                self._write(self.paint("dim", f"  [工具] {name}: {preview}\n"))
 
     # ---- 交互 ----
     def ask_yes_no(self, question: str) -> bool:
