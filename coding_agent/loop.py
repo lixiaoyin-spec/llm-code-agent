@@ -8,7 +8,7 @@
 5. API 认证失败 —— 立即退出并给出配置指引；网络/服务错误经客户端
    重试仍失败则中止，不假装成功。
 
-执行策略：只读工具（list_files / read_file / search_files）无副作用，可并行；
+执行策略：只读工具（list_files / read_file / search_files / list_skills / use_skill）无副作用，可并行；
 写文件与命令有副作用且可能相互依赖，必须按模型给出的顺序串行执行。
 """
 
@@ -25,7 +25,7 @@ from .llm import AssistantTurn, LLMClient, LLMError, ToolCall
 from .tools import TOOL_SCHEMAS, ToolContext, ToolResult, run_tool
 from .ui import UI
 
-READ_ONLY_TOOLS = {"list_files", "read_file", "search_files"}
+READ_ONLY_TOOLS = {"list_files", "read_file", "search_files", "list_skills", "use_skill"}
 
 
 @dataclass

@@ -7,11 +7,12 @@ Nihue 是南京大学软件工程专业推免项目作品：个人独立设计�
 ## 特性
 
 - 零框架：直连 OpenAI 兼容接口，SSE 流式输出逐字打印，`tool_calls` 跨 chunk 增量拼接，工具参数 JSON 容错解析（兼容 markdown 代码块包裹）
-- 六个本地工具：`list_files` / `read_file` / `write_file` / `replace_in_file` / `search_files` / `run_command`
+- 八个本地工具：六个基础工具（`list_files` / `read_file` / `write_file` / `replace_in_file` / `search_files` / `run_command`）+ 两个技能工具（`list_skills` / `use_skill`）
 - 安全：文件路径沙箱（强制工作目录内）、命令执行人工确认（yes/no/always/skip）、危险命令防呆拦截、工具输出截断
 - 上下文管理：启发式 token 估算，超预算自动把早期历史压缩为摘要（保留近期消息），保证消息序列始终合法
 - 主循环：多轮自主迭代、只读工具并行执行、连续重复调用检测、轮数上限、Ctrl+C 中断、API 错误分类与指数退避重试
 - 会话保存 / 恢复：历史落盘为 JSONL，`--resume` 随时续接；REPL 内 `/sessions` 查看、`/sessions resume <名称>` 切换
+- 技能（skill）：渐进式披露的指令包——启动只注入技能名与简介，模型按需 `use_skill` 拉取完整步骤；内置写测试/代码审查/提交整理三个示例技能
 - 计划模式：`--plan` 先输出计划、人工确认后执行
 - 思考过程展示：GLM 的 `reasoning_content` 以灰色实时显示（`--no-reasoning` 关闭）
 
@@ -47,7 +48,7 @@ export ZHIPU_API_KEY=你的Key
 # 一次性任务
 python agent.py "给 wordfreq.py 增加一个 --top N 命令行参数：按词频从高到低只输出前 N 个词（默认输出全部），并补充对应的单元测试，运行测试确保全部通过" --workspace demo
 
-# 交互模式（内置命令 /help /clear /compact /sessions /stats /exit）
+# 交互模式（内置命令 /help /clear /compact /sessions /skills /stats /exit）
 python agent.py
 ```
 
@@ -67,7 +68,7 @@ Windows PowerShell 用户可在个人配置文件中定义 `nihue` 函数，之�
 function nihue { python "D:\你的路径\agent.py" @args }
 ```
 
-用法示例：`nihue`（交互模式）、`nihue "任务描述" -w demo`、`nihue --resume <会话名>`。
+用法示例：`nihue`（交互模式）、`nihue "任务描述" -w demo`、`nihue --resume <会话名>`、`nihue --list-skills`。
 
 ## 命令行参数
 
@@ -87,6 +88,8 @@ function nihue { python "D:\你的路径\agent.py" @args }
 | `--context-budget` | 触发历史压缩的 token 预算 | 24000 |
 | `--resume SESSION` | 恢复会话 | - |
 | `--list-sessions` | 列出已保存会话 | - |
+| `--list-skills` | 列出可用技能 | - |
+| `--skills-dir DIR` | 额外技能目录（可多次指定，同名覆盖内置目录） | - |
 | `-v, --verbose` | 打印调试信息与每轮标题（不会打印 API Key） | 关 |
 | `--no-save` | 不保存会话 | 关 |
 
@@ -99,6 +102,8 @@ function nihue { python "D:\你的路径\agent.py" @args }
 | `write_file` | 创建/覆盖文件 | 路径沙箱 |
 | `replace_in_file` | 唯一匹配替换 | 要求 old_text 恰好出现一次 |
 | `search_files` | 正则搜索内容 | 跳过 .git/node_modules 等目录 |
+| `list_skills` | 列出可用技能 | 只读，无副作用 |
+| `use_skill` | 按需加载技能完整说明 | 只读，仅允许读取技能目录 |
 | `run_command` | 执行命令 | 人工确认 + 危险命令防呆拦截 + 超时终止整个进程树 + 输出截断 |
 
 ## 架构
@@ -114,9 +119,11 @@ coding_agent/
   loop.py                   主循环：终止条件、只读并行、重复调用检测
   ui.py                     终端交互与人工确认器
   session.py                会话 JSONL 保存/恢复
+  skills.py                 技能扫描、frontmatter 解析与按需加载
 scripts/mock_server.py      离线模拟服务端（演练用，非 agent 组成部分）
 demo/                       演示任务现场（wordfreq.py 与单元测试）
-tests/                      49 个离线单元测试
+.nihue/skills/              内置示例技能（写测试/代码审查/提交整理）
+tests/                      65 个离线单元测试
 ```
 
 主循环（每轮）：
@@ -140,13 +147,14 @@ tests/                      49 个离线单元测试
 - **为什么有 5 种终止条件？** 正常完成、轮数上限、重复调用检测、用户中断、API 失败分别对应不同的失控模式，缺一不可。
 - **为什么错误回传给模型而不是中断？** 工具错误（路径不存在、参数非法）大多是模型可自行纠正的，回传构成自我修复闭环；只有认证失败这类不可恢复错误才立即停止。
 - **为什么默认温度 0.2？** agent 任务里工具参数的正确性比文本多样性重要，低温减少参数幻觉。
+- **为什么技能用"按需加载"而不是全部注入提示词？** 常驻全部技能会推高每轮 token 并稀释注意力；只注入名称与简介，模型判断匹配时再 `use_skill` 拉取全文，是最简的"渐进式披露"实现。
 
 ## 测试
 
 全部测试离线可跑，不依赖网络与 API Key：
 
 ```bash
-python -m unittest discover -s tests -v   # 49 个用例
+python -m unittest discover -s tests -v   # 65 个用例
 ```
 
 覆盖：配置加载与凭据脱敏、SSE 流式解析（本地模拟服务端）、重试与错误分类、路径沙箱、命令确认/拦截/超时、上下文压缩、主循环终止条件、并行执行、计划模式。

@@ -21,6 +21,7 @@ from coding_agent.context import MessageStore
 from coding_agent.llm import LLMClient
 from coding_agent.loop import Agent, RunStats, format_stats
 from coding_agent.prompts import build_system_prompt
+from coding_agent.skills import SkillRegistry
 from coding_agent.session import (
     list_sessions,
     load_session,
@@ -37,6 +38,7 @@ HELP_TEXT = """内置命令：
   /compact  立即压缩对话历史
   /sessions 列出已保存会话
   /sessions resume <名称>  切换会话
+  /skills   列出可用技能
   /stats    显示当前任务统计
   /exit     保存会话并退出"""
 
@@ -62,6 +64,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--context-budget", type=int, help="触发历史压缩的 token 预算，默认 24000")
     parser.add_argument("--resume", metavar="SESSION", help="恢复会话（文件名或前缀）")
     parser.add_argument("--list-sessions", action="store_true", help="列出已保存会话")
+    parser.add_argument("--skills-dir", dest="skills_dirs", action="append", help="额外技能目录（可多次指定，同名技能覆盖内置目录）")
+    parser.add_argument("--list-skills", action="store_true", help="列出可用技能")
     parser.add_argument("-v", "--verbose", action="store_true", help="打印调试信息（不会打印 API Key）")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return parser
@@ -85,7 +89,7 @@ def cli_overrides(args: argparse.Namespace) -> dict:
     }
 
 
-def run_repl(agent: Agent, ui: UI, session_path: Path | None) -> None:
+def run_repl(agent: Agent, ui: UI, session_path: Path | None, skills: SkillRegistry | None = None) -> None:
     ui.info("输入任务描述开始（/help 查看内置命令，/exit 退出）。")
     while True:
         try:
@@ -129,6 +133,12 @@ def run_repl(agent: Agent, ui: UI, session_path: Path | None) -> None:
         if line.startswith("/sessions"):
             ui.warn("用法：/sessions（列出）或 /sessions resume <会话名或前缀>")
             continue
+        if line == "/skills":
+            if skills is None:
+                ui.warn("技能功能未启用。")
+            else:
+                ui.info(skills.list_text())
+            continue
         if line == "/help":
             ui.info(HELP_TEXT)
             continue
@@ -157,11 +167,23 @@ def main(argv: list[str] | None = None) -> int:
             print(line)
         return 0
 
+    skill_roots: list[tuple[Path, str]] = [(Path.home() / ".nihue" / "skills", "user")]
+    workspace_skills = Path(args.workspace).resolve() / ".nihue" / "skills"
+    if workspace_skills != skill_roots[0][0]:
+        skill_roots.append((workspace_skills, "project"))
+    for extra_dir in args.skills_dirs or []:
+        skill_roots.append((Path(extra_dir).expanduser().resolve(), "extra"))
+    skills = SkillRegistry(skill_roots)
+
+    if args.list_skills:
+        print(skills.list_text())
+        return 0
+
     ui.logo()
 
     client = LLMClient(config)
     store = MessageStore(
-        build_system_prompt(config.workspace, extra=config.extra_system, plan_mode=config.plan_first),
+        build_system_prompt(config.workspace, extra=config.extra_system, plan_mode=config.plan_first, skills_text=skills.list_text()),
         context_budget=config.context_budget,
         keep_recent=config.keep_recent,
     )
@@ -188,6 +210,7 @@ def main(argv: list[str] | None = None) -> int:
         read_max_lines=config.read_max_lines,
         output_chars=config.tool_output_chars,
         search_max_matches=config.search_max_matches,
+        skills=skills,
     )
     agent = Agent(config, client, store, tools, ui)
 
@@ -197,7 +220,7 @@ def main(argv: list[str] | None = None) -> int:
         stats = agent.run(task)
         ui.info(format_stats(agent.store, stats))
     else:
-        run_repl(agent, ui, session_path)
+        run_repl(agent, ui, session_path, skills)
 
     if session_path is not None:
         save_session(session_path, agent.store)

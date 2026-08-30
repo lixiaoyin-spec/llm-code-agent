@@ -23,7 +23,7 @@ BASE_RULES = """你是 Nihue，一个运行在用户电脑上的编程智能体�
 6. 所有文件操作都限制在工作目录内，超出范围的路径会被拒绝。"""
 
 
-def build_system_prompt(workspace: Path, extra: str = "", plan_mode: bool = False) -> str:
+def build_system_prompt(workspace: Path, extra: str = "", plan_mode: bool = False, skills_text: str = "") -> str:
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     parts = [
         BASE_RULES,
@@ -33,6 +33,12 @@ def build_system_prompt(workspace: Path, extra: str = "", plan_mode: bool = Fals
             f"本地时间 {now}。"
         ),
     ]
+    if skills_text:
+        parts.append(
+            "可用技能（skill，按需加载，未加载时不占用上下文）：\n"
+            + skills_text
+            + "\n规则：当任务与某个技能匹配时，先调用 use_skill 获取该技能的完整说明，再按其步骤执行；技能加载后在本会话内持续生效。"
+        )
     if plan_mode:
         parts.append(PLAN_MODE_RULE)
     if extra:

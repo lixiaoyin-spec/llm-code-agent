@@ -23,6 +23,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
+from .skills import SkillError
+
 SKIP_DIRS = {".git", ".hg", ".svn", "node_modules", "__pycache__", ".venv", "venv",
              "dist", "build", ".idea", ".vscode", ".mypy_cache", ".pytest_cache"}
 
@@ -62,6 +64,7 @@ class ToolContext:
     search_max_matches: int = 40
     search_max_file_bytes: int = 512 * 1024
     command_max_timeout: int = 600
+    skills: Any | None = None
 
 
 @dataclass
@@ -162,6 +165,28 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                     "timeout": {"type": "integer", "description": "超时秒数，默认 30，上限 600；长驻服务探测建议传 10"},
                 },
                 "required": ["command"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_skills",
+            "description": "列出当前可用的技能（skill）与用途。技能是可选的专门工作方法，任务匹配时按需加载。",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "use_skill",
+            "description": "加载指定技能的完整说明到对话上下文，之后严格按其中的步骤执行。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "技能名称，来自 list_skills 或系统提示词"},
+                },
+                "required": ["name"],
             },
         },
     },
@@ -457,6 +482,26 @@ def _tool_run_command(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     return ToolResult("run_command", ok, output, duration_ms=elapsed)
 
 
+def _tool_list_skills(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
+    registry = ctx.skills
+    if registry is None:
+        return ToolResult("list_skills", True, "技能功能未启用（未配置技能目录）。")
+    return ToolResult("list_skills", True, registry.list_text())
+
+
+def _tool_use_skill(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
+    registry = ctx.skills
+    if registry is None:
+        return ToolResult("use_skill", False, "技能功能未启用（未配置技能目录）。")
+    name = str(args.get("name") or "").strip()
+    if not name:
+        raise ToolError("缺少 name 参数")
+    try:
+        return ToolResult("use_skill", True, registry.load_text(name))
+    except SkillError as exc:
+        raise ToolError(str(exc)) from exc
+
+
 _IMPLEMENTATIONS: dict[str, Callable[[dict[str, Any], ToolContext], ToolResult]] = {
     "list_files": _tool_list_files,
     "read_file": _tool_read_file,
@@ -464,6 +509,8 @@ _IMPLEMENTATIONS: dict[str, Callable[[dict[str, Any], ToolContext], ToolResult]]
     "replace_in_file": _tool_replace_in_file,
     "search_files": _tool_search_files,
     "run_command": _tool_run_command,
+    "list_skills": _tool_list_skills,
+    "use_skill": _tool_use_skill,
 }
 
 
