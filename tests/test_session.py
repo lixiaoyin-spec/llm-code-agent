@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tempfile
 import unittest
@@ -12,7 +13,7 @@ from unittest import mock
 from coding_agent import session as session_mod
 from coding_agent.context import MessageStore
 from coding_agent.llm import AssistantTurn
-from coding_agent.session import list_sessions, load_session, new_session_path, resolve_session, save_session
+from coding_agent.session import derive_title, list_sessions, load_session, new_session_path, resolve_session, save_session
 
 
 class SessionTests(unittest.TestCase):
@@ -39,27 +40,29 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(loaded.messages[4]["content"], "文件内容")
 
     def test_resolve_session_by_prefix(self):
-        with mock.patch.object(session_mod, "SESSION_DIR", self.tmp):
+        with mock.patch.object(session_mod, "SESSION_DIR", self.tmp / "prefix"):
             session_mod.ensure_session_dir()
-            (self.tmp / "20260827-100000-a.jsonl").write_text(
+            (self.tmp / "prefix" / "20260827-100000-a.jsonl").write_text(
                 json.dumps({"role": "system", "content": "x"}) + "\n", encoding="utf-8"
             )
-            (self.tmp / "20260827-110000-b.jsonl").write_text(
+            (self.tmp / "prefix" / "20260827-110000-b.jsonl").write_text(
                 json.dumps({"role": "system", "content": "y"}) + "\n", encoding="utf-8"
             )
+            os.utime(self.tmp / "prefix" / "20260827-100000-a.jsonl", (1750000000, 1750000000))
+            os.utime(self.tmp / "prefix" / "20260827-110000-b.jsonl", (1750000100, 1750000100))
             self.assertEqual(resolve_session("20260827-10").name, "20260827-100000-a.jsonl")
             self.assertEqual(resolve_session("20260827").name, "20260827-110000-b.jsonl")
             self.assertEqual(resolve_session("20260827-110000-b").name, "20260827-110000-b.jsonl")
 
     def test_resolve_session_missing(self):
-        with mock.patch.object(session_mod, "SESSION_DIR", self.tmp):
+        with mock.patch.object(session_mod, "SESSION_DIR", self.tmp / "missing"):
             session_mod.ensure_session_dir()
             with self.assertRaises(FileNotFoundError):
                 resolve_session("no-such-session")
 
     def test_list_sessions_empty(self):
-        with mock.patch.object(session_mod, "SESSION_DIR", self.tmp):
-            self.assertEqual(list_sessions(), ["（暂无已保存会话）"])
+        with mock.patch.object(session_mod, "SESSION_DIR", self.tmp / "empty"):
+            self.assertEqual(list_sessions(), [])
 
     def test_new_session_path_slug_cleanup(self):
         with mock.patch.object(session_mod, "SESSION_DIR", self.tmp):
@@ -70,6 +73,41 @@ class SessionTests(unittest.TestCase):
             self.assertNotIn(" ", path.name)
             self.assertNotIn("!", path.name)
 
+
+
+    def test_derive_title_from_first_user_message(self):
+        path = self.tmp / "s.jsonl"
+        path.write_text(
+            json.dumps({"role": "system", "content": "x"}) + "\n"
+            + json.dumps({"role": "user", "content": "简历项目描述优化\n第二行"}) + "\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(derive_title(path), "简历项目描述优化")
+        path.write_text(
+            json.dumps({"role": "system", "content": "x"}) + "\n"
+            + json.dumps({"role": "user", "content": "很" * 40}) + "\n",
+            encoding="utf-8",
+        )
+        title = derive_title(path)
+        self.assertEqual(len(title), 24)
+        self.assertTrue(title.endswith("..."))
+
+    def test_resolve_session_by_title_and_index(self):
+        with mock.patch.object(session_mod, "SESSION_DIR", self.tmp / "title"):
+            session_mod.ensure_session_dir()
+            first = self.tmp / "title" / "20260830-100000-a.jsonl"
+            second = self.tmp / "title" / "20260830-110000-b.jsonl"
+            for path, text in ((first, "简历项目描述优化"), (second, "安装技能")):
+                path.write_text(
+                    json.dumps({"role": "system", "content": "x"}) + "\n"
+                    + json.dumps({"role": "user", "content": text}) + "\n",
+                    encoding="utf-8",
+                )
+            os.utime(first, (1750000000, 1750000000))
+            os.utime(second, (1750000100, 1750000100))
+            self.assertEqual(resolve_session("简历").name, first.name)
+            self.assertEqual(resolve_session("2").name, first.name)
+            self.assertEqual(resolve_session("1").name, second.name)
 
 if __name__ == "__main__":
     unittest.main()

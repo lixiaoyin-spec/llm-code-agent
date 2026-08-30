@@ -31,5 +31,16 @@ class UiTests(unittest.TestCase):
         self.assertIn("输入任务", stream.getvalue())
 
 
+    def test_pick_session_numbered_fallback(self):
+        stream = io.StringIO()
+        ui = UI(color=False, stream=stream)
+        with mock.patch("builtins.input", return_value="2"):
+            self.assertEqual(ui.pick_session([("甲", "a"), ("乙", "b")]), 1)
+        with mock.patch("builtins.input", return_value=""):
+            self.assertIsNone(ui.pick_session([("甲", "a")]))
+        self.assertIsNone(ui.pick_session([]))
+        self.assertIn("1. 甲", stream.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -36,7 +36,7 @@ HELP_TEXT = """内置命令：
   /help     显示本帮助
   /clear    清空对话历史（保留系统提示）
   /compact  立即压缩对话历史
-  /sessions 列出已保存会话
+  /sessions 选择并恢复会话（↑↓ 选择，Enter 恢复）
   /sessions resume <名称>  切换会话
   /skills   列出可用技能
   /stats    显示当前任务统计
@@ -116,8 +116,17 @@ def run_repl(agent: Agent, ui: UI, session_path: Path | None, skills: SkillRegis
             ui.info(format_stats(agent.store, agent.stats))
             continue
         if line == "/sessions":
-            for entry in list_sessions():
-                ui.info(entry)
+            entries = list_sessions()
+            choice = ui.pick_session(
+                [(entry.title, f"{entry.mtime:%m-%d %H:%M}  {entry.size} 字节") for entry in entries]
+            )
+            if choice is None:
+                continue
+            path = entries[choice].path
+            agent.store = load_session(path, agent.store)
+            agent.stats = RunStats()
+            session_path = path
+            ui.info(f"已切换会话：{path.name}（{len(agent.store.messages)} 条消息）")
             continue
         if line.startswith("/sessions resume "):
             try:
@@ -163,8 +172,11 @@ def main(argv: list[str] | None = None) -> int:
     ui = UI(color=config.color)
 
     if args.list_sessions:
-        for line in list_sessions():
-            print(line)
+        entries = list_sessions()
+        if not entries:
+            print("（暂无已保存会话）")
+        for entry in entries:
+            print(f"{entry.title}  （{entry.name}，{entry.mtime:%m-%d %H:%M}，{entry.size} 字节）")
         return 0
 
     skill_roots: list[tuple[Path, str]] = [(Path.home() / ".nihue" / "skills", "user")]

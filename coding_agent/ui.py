@@ -132,6 +132,94 @@ class UI:
         self.newline()
         self._write(self.paint("red", f"x {text}\n"))
 
+    def _read_key(self) -> str:
+        """读取一个按键：Windows 用 msvcrt，POSIX 用 termios 原始模式。"""
+        if os.name == "nt":
+            import msvcrt
+            first = msvcrt.getch()
+            if first in (b"\xe0", b"\x00"):
+                second = msvcrt.getch()
+                return {"H": "up", "P": "down"}.get(second.decode("latin-1"), "other")
+            if first == b"\r":
+                return "enter"
+            if first == b"\x1b":
+                return "esc"
+            return "other"
+        import termios
+        import tty
+        fd = sys.stdin.fileno()
+        old = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            first = sys.stdin.buffer.read(1)
+            if first == b"\x1b":
+                seq = sys.stdin.buffer.read(2)
+                return {"[A": "up", "[B": "down"}.get(seq.decode("latin-1"), "esc")
+            if first in (b"\r", b"\n"):
+                return "enter"
+            return "other"
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+    def pick_session(self, entries: list[tuple[str, str]]) -> int | None:
+        """方向键选择会话：↑↓ 移动、Enter 恢复、Esc 取消；非交互终端回退为数字输入。"""
+        if not entries:
+            self.info("（暂无已保存会话）")
+            return None
+        if not (self.color and self.stream is sys.stdout and sys.stdin.isatty()):
+            self._write("\n".join(f"{i + 1}. {title}   {sublabel}" for i, (title, sublabel) in enumerate(entries)) + "\n")
+            return self._pick_numbered(entries)
+        height = len(entries) + 4
+        index = 0
+        first_draw = True
+        while True:
+            if not first_draw:
+                self._write(f"\x1b[{height}A")
+            first_draw = False
+            self._write(self._picker_block(entries, index) + "\n")
+            try:
+                key = self._read_key()
+            except OSError:
+                self._write("\n")
+                return self._pick_numbered(entries)
+            except (EOFError, KeyboardInterrupt):
+                self._write("\n")
+                return None
+            if key == "up":
+                index = (index - 1) % len(entries)
+            elif key == "down":
+                index = (index + 1) % len(entries)
+            elif key == "enter":
+                self._write("\n")
+                return index
+            elif key == "esc":
+                self._write("\n")
+                return None
+
+    def _pick_numbered(self, entries: list[tuple[str, str]]) -> int | None:
+        try:
+            answer = input("输入序号恢复，直接回车取消：").strip()
+        except (EOFError, KeyboardInterrupt):
+            return None
+        if answer.isdigit() and 1 <= int(answer) <= len(entries):
+            return int(answer) - 1
+        return None
+
+    def _picker_block(self, entries: list[tuple[str, str]], index: int) -> str:
+        width = max(40, min(shutil.get_terminal_size(fallback=(76, 24)).columns, 300))
+        border = self.paint("dim", "─" * width)
+        caption = self.paint("dim", " 选择会话：↑↓ 移动 · Enter 恢复 · Esc 取消")
+        lines = [caption, border]
+        for i, (title, sublabel) in enumerate(entries):
+            marker = ">" if i == index else " "
+            line = f"  {marker} {title}   {sublabel}"
+            if i == index:
+                line = self.paint("bold", line)
+            lines.append(line + "\x1b[K")
+        lines.append(border)
+        lines.append(self.paint("dim", " ? ↑↓ 选择 · Enter 恢复 · Esc 取消"))
+        return "\n".join(lines)
+
     # ---- 交互 ----
     def ask_yes_no(self, question: str) -> bool:
         self.newline()
