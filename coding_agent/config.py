@@ -62,7 +62,7 @@ class Config:
     base_url: str = DEFAULT_BASE_URL
     model: str = DEFAULT_MODEL
     workspace: Path = field(default_factory=Path.cwd)
-    max_turns: int = 30
+    max_turns: int = 60
     max_tokens: int = 4096
     temperature: float = 0.2
     auto_approve: bool = False

@@ -79,7 +79,7 @@ function nihue { python "D:\你的路径\agent.py" @args }
 | `-m, --model` | 模型名（智谱控制台可用模型为准） | `glm-4.5-air` |
 | `--base-url` | OpenAI 兼容接口地址 | 智谱官方 |
 | `--api-key` | API Key（推荐用环境变量） | - |
-| `--max-turns` | 最大轮数 | 30 |
+| `--max-turns` | 最大轮数 | 60 |
 | `--max-tokens` | 单次回复最大 token | 4096 |
 | `--temperature` | 采样温度 | 0.2 |
 | `--auto-approve` | 自动放行所有命令（仅限可信环境/录制演示） | 关 |

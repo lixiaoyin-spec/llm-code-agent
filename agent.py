@@ -41,7 +41,7 @@ HELP_TEXT = """内置命令：
   /sessions resume <名称>  切换会话
   /skills   列出可用技能
   /stats    显示当前任务统计
-  /max-turns <N>  调整单任务轮数上限（默认 30）
+  /max-turns <N>  调整单任务轮数上限（默认 60）
   /exit     保存会话并退出"""
 
 
@@ -55,7 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-m", "--model", help=f"模型名，默认 {DEFAULT_MODEL}（智谱控制台可用模型为准）")
     parser.add_argument("--base-url", help=f"OpenAI 兼容接口地址，默认智谱官方 {DEFAULT_BASE_URL}")
     parser.add_argument("--api-key", help="API Key（推荐用环境变量 ZHIPU_API_KEY）")
-    parser.add_argument("--max-turns", type=int, help="最大轮数，默认 30")
+    parser.add_argument("--max-turns", type=int, help="最大轮数，默认 60")
     parser.add_argument("--max-tokens", type=int, help="单次回复最大 token，默认 4096")
     parser.add_argument("--temperature", type=float, help="采样温度，默认 0.2")
     parser.add_argument("--auto-approve", action="store_true", help="自动放行所有命令（仅限可信环境/录制演示）")
