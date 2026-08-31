@@ -88,6 +88,14 @@ class LoopTest(unittest.TestCase):
         self.assertEqual(stats.stop_reason, "max_turns")
         self.assertEqual(stats.turns, 3)
 
+    def test_turn_budget_resets_after_limit(self):
+        client = ScriptedClient([turn("回答")])
+        agent, store, ui = make_agent(self.tmp, client, max_turns=30)
+        agent.stats.turns = 30
+        stats = agent.run("新任务")
+        self.assertEqual(stats.stop_reason, "model_finished")
+        self.assertEqual(stats.turns, 1)
+
     def test_repetition_detection(self):
         client = ScriptedClient([turn("x", [read_call("c1", "a.txt")])] * 100)
         agent, store, ui = make_agent(self.tmp, client, max_turns=10)

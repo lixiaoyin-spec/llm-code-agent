@@ -54,6 +54,8 @@ class Agent:
     # ---- 对外入口 ----
     def run(self, task: str) -> RunStats:
         """执行一条用户任务，直到自然结束或触发终止条件。"""
+        self.stats = RunStats()
+        self._recent_signatures = []
         message = task
         if self.config.plan_first:
             self._plan_pending = True
