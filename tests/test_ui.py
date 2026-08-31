@@ -74,5 +74,53 @@ class UiTests(unittest.TestCase):
 
 
 
+class MarkdownRenderTests(unittest.TestCase):
+    def test_passthrough_without_color(self):
+        stream = io.StringIO()
+        ui = UI(color=False, stream=stream)
+        ui.stream_text("# 标题\n**加粗** `代码`")
+        ui.end_turn()
+        out = stream.getvalue()
+        self.assertEqual(out, "# 标题\n**加粗** `代码`\n")
+
+    def test_renders_headings_bold_code_lists_fence_quote(self):
+        stream = io.StringIO()
+        ui = UI(color=False, stream=stream)
+        ui.color = True
+        md = "# 标题\n\n**加粗** 和 `代码`\n\n- 项目一\n- 项目二\n\n1. 第一\n2. 第二\n\n> 引用\n\n```python\nprint(1)\n```\n"
+        ui.stream_text(md)
+        ui.end_turn()
+        out = stream.getvalue()
+        self.assertIn("\x1b[33m标题", out)
+        self.assertIn("\x1b[1m加粗", out)
+        self.assertIn("\x1b[36m代码", out)
+        self.assertIn("项目一", out)
+        self.assertIn("第一", out)
+        self.assertIn("引用", out)
+        self.assertIn("┌─ python", out)
+        self.assertIn("print(1)", out)
+        self.assertIn("└─", out)
+
+    def test_flushes_partial_line_on_end_turn(self):
+        stream = io.StringIO()
+        ui = UI(color=False, stream=stream)
+        ui.color = True
+        ui.stream_text("没有换行的结尾")
+        ui.end_turn()
+        self.assertIn("没有换行的结尾", stream.getvalue())
+        self.assertTrue(stream.getvalue().endswith("\n"))
+
+    def test_streams_across_arbitrary_chunks(self):
+        stream = io.StringIO()
+        ui = UI(color=False, stream=stream)
+        ui.color = True
+        for ch in "# 标题\n- 项目\n":
+            ui.stream_text(ch)
+        ui.end_turn()
+        out = stream.getvalue()
+        self.assertIn("标题", out)
+        self.assertIn("项目", out)
+        self.assertEqual(out.count("标题"), 1)
+
 if __name__ == "__main__":
     unittest.main()

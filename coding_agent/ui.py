@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import sys
 from typing import Any, TextIO
@@ -54,6 +55,7 @@ class UI:
         self.stream = stream or sys.stdout
         self.color = bool(color) and self.stream.isatty()
         self._mid_line = False
+        self._markdown = None
         if os.name == "nt" and self.color:
             self._enable_vt()
 
@@ -89,7 +91,9 @@ class UI:
 
     # ---- 流式输出 ----
     def stream_text(self, chunk: str) -> None:
-        self._write(chunk)
+        if self._markdown is None:
+            self._markdown = MarkdownStream(self)
+        self._markdown.feed(chunk)
 
     def stream_reasoning(self, chunk: str) -> None:
         if not getattr(self, "_reasoning_started", False):
@@ -102,6 +106,8 @@ class UI:
 
     def end_turn(self) -> None:
         self._reasoning_started = False
+        if self._markdown is not None:
+            self._markdown.flush()
         self.newline()
 
     # ---- 常规输出 ----
@@ -344,3 +350,105 @@ class TerminalApprover:
                 return "yes"
             if choice in ("s", "skip"):
                 return "skip"
+
+class MarkdownStream:
+    """把模型流式输出的 Markdown 渲染为彩色终端文本；颜色关闭时原样透传。
+
+    支持：标题、加粗/斜体、行内代码、围栏代码块、无序/有序列表、引用、水平线；
+    其余内容（表格、链接等）保持原文输出。
+    """
+
+    _INLINE_RE = re.compile(r"(`[^`]+`|\*\*[^*]+\*\*|\*[^*\s][^*]*\*)")
+
+    def __init__(self, ui: UI):
+        self.ui = ui
+        self._buffer = ""
+        self._in_fence = False
+        self._fence_lang = ""
+
+    def feed(self, chunk: str) -> None:
+        if not chunk:
+            return
+        if not self.ui.color:
+            self.ui._write(chunk)
+            return
+        self._buffer += chunk.replace("\r\n", "\n")
+        while "\n" in self._buffer:
+            line, self._buffer = self._buffer.split("\n", 1)
+            self._render_line(line)
+
+    def flush(self) -> None:
+        if self.ui.color and self._buffer:
+            self._render_line(self._buffer)
+        self._buffer = ""
+
+    def _render_line(self, line: str) -> None:
+        ui = self.ui
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            if not self._in_fence:
+                self._in_fence = True
+                self._fence_lang = stripped[3:].strip()
+                ui._write(ui.paint("dim", "┌─ " + (self._fence_lang or "code")) + "\n")
+            else:
+                self._in_fence = False
+                ui._write(ui.paint("dim", "└─") + "\n")
+            return
+        if self._in_fence:
+            ui._write(ui.paint("cyan", "│ ") + line + "\n")
+            return
+
+        heading = re.match(r"^(#{1,6})\s+(.*)$", line)
+        if heading:
+            level = len(heading.group(1))
+            color = {1: "yellow", 2: "cyan", 3: "green"}.get(level, "dim")
+            ui._write(
+                ui.paint("bold", heading.group(1) + " ")
+                + ui.paint(color, self._render_inline(heading.group(2)))
+                + "\n"
+            )
+            return
+
+        bullet = re.match(r"^(\s*)([-*+])\s+(.*)$", line)
+        if bullet:
+            indent, marker, rest = bullet.groups()
+            ui._write(indent + ui.paint("yellow", marker) + " " + self._render_inline(rest) + "\n")
+            return
+
+        numbered = re.match(r"^(\s*)(\d+[.)])\s+(.*)$", line)
+        if numbered:
+            indent, marker, rest = numbered.groups()
+            ui._write(indent + ui.paint("cyan", marker) + " " + self._render_inline(rest) + "\n")
+            return
+
+        quote = re.match(r"^(\s*>\s?)(.*)$", line)
+        if quote:
+            ui._write(
+                ui.paint("dim", quote.group(1))
+                + ui.paint("dim", self._render_inline(quote.group(2)))
+                + "\n"
+            )
+            return
+
+        if stripped in ("---", "***", "___", "==="):
+            ui._write(ui.paint("dim", line) + "\n")
+            return
+
+        ui._write(self._render_inline(line) + "\n")
+
+    def _render_inline(self, text: str) -> str:
+        ui = self.ui
+        parts: list[str] = []
+        pos = 0
+        for match in self._INLINE_RE.finditer(text):
+            parts.append(text[pos:match.start()])
+            token = match.group(0)
+            if token.startswith("`"):
+                parts.append(ui.paint("cyan", token[1:-1]))
+            elif token.startswith("**"):
+                parts.append(ui.paint("bold", token[2:-2]))
+            else:
+                parts.append(ui.paint("green", token[1:-1]))
+            pos = match.end()
+        parts.append(text[pos:])
+        return "".join(parts)
