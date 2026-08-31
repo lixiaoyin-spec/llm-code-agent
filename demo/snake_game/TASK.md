@@ -10,7 +10,7 @@
    - 吃到食物：蛇身 +1、分数 +1，并立即生成新食物。
    - 撞墙或撞到自己：游戏结束，打印总分。
 2. 交互模式（不需要第三方库，Windows 优先）：
-   - W/A/S/D 控制上/左/下/右，Q 退出；方向不允许 180 度掉头（例如向右时按 A 无效）。
+   - W/A/S/D 控制上/左/下/右，Q 退出；方向不允许 180 度掉头。
    - 用 msvcrt 非阻塞读取键盘；每帧 time.sleep(0.2)（约 5 帧/秒）后清屏重绘。
    - 每帧在棋盘上方显示当前分数；开局打印操作说明。
 3. 渲染：
@@ -21,12 +21,26 @@
 5. 逻辑与输入输出分离（测试友好）：
    - 核心规则放在 `SnakeGame` 类：只负责状态与规则，提供 `step(direction)`，返回本轮结果（是否吃到食物、游戏是否结束）。
    - 食物生成可注入随机源（如 `random.Random(seed)`），保证测试可重复。
-6. 自测纪律：
-   - 只允许用 `python -m unittest` 和 `python snake.py --demo demo_inputs.txt` 自测。
-   - 禁止自己运行交互模式 `python snake.py`（会一直等待输入），交互模式只在完成总结中告诉用户如何启动。
+6. 自测纪律（必须遵守）：
+   - 只允许用 `python -m unittest` 和 `python snake.py --demo demo_inputs.txt` 自测；禁止创建 debug.py 之类的临时调试脚本。
+   - 测试失败时先读报错与测试代码，理解原因后再修改 snake.py；禁止不修改代码就重复运行同一命令。
+   - 禁止自己运行交互模式 `python snake.py`（会一直等待输入）；交互模式只在最终总结中告诉用户如何启动。
+
+## 实现提示（照做可避开绝大多数常见 bug）
+
+- 蛇身坐标用 `collections.deque` 保存，约定 `deque[0]` 是蛇头、`deque[-1]` 是蛇尾；渲染时按此约定画 O/o。
+- 初始化：蛇头在 (width//2, height//2)，蛇身向左延伸：`deque = [(cx, cy), (cx-1, cy), (cx-2, cy)]`，初始方向 right。
+- `step(direction)` 按以下顺序实现：
+  1. 若新方向与当前方向相反（right 对 left、up 对 down），忽略该指令，保持原方向继续。
+  2. new_head = 蛇头 + 偏移（right 为 x+1，left 为 x-1，down 为 y+1，up 为 y-1）。
+  3. 撞墙判定：new_head 不在墙内范围（x 在 1..width-2，y 在 1..height-2）-> 游戏结束。
+  4. 自撞判定：new_head 在 `list(snake)[:-1]` 中 -> 游戏结束。注意必须排除蛇尾 `deque[-1]`：本步蛇尾会移走，不算碰撞。
+  5. `snake.appendleft(new_head)`。
+  6. 若 new_head 等于食物：分数 +1，生成新食物（从空白格随机选，可用注入的 random.Random），不 pop 尾部。
+  7. 否则 `snake.pop()` 移除尾部。
 
 ## 验收标准
 
-- `python -m unittest` 全部通过，至少覆盖：初始状态、四个方向移动、吃食物后增长与加分、撞墙结束、撞自己结束、180 度掉头被忽略、食物不会生成在蛇身上。
-- `python snake.py --demo demo_inputs.txt` 能连续渲染多帧画面，最后打印"游戏结束"与总分并正常退出。
+- `python -m unittest` 全部通过，至少覆盖：初始状态（长度、方向、棋盘尺寸）、四个方向移动、吃食物后增长与加分、撞墙结束、撞自己结束、180 度掉头被忽略、食物不会生成在蛇身上。
+- `python snake.py --demo demo_inputs.txt` 能连续渲染多帧画面，最后打印"游戏结束"与总分并正常退出（退出码 0）。
 - 用户运行 `python snake.py` 可用 W/A/S/D 游玩、Q 退出。

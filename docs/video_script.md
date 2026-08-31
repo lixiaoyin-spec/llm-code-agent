@@ -31,7 +31,7 @@
 ### 镜头 3 核心任务（28s 执行画面，录制后加速）
 - 命令：
 ```powershell
-python agent.py "阅读 TASK.md，按规格从零实现终端贪吃蛇游戏，补充单元测试并运行到全绿" --workspace demo/snake_game --auto-approve
+python agent.py "阅读 TASK.md，按规格从零实现终端贪吃蛇游戏，补充单元测试并运行到全绿" --workspace demo/snake_game --auto-approve --max-turns 40
 ```
 - 预期画面：read_file 读 TASK.md 规格 -> write_file 从零写 snake.py（游戏逻辑/渲染/输入分层）-> write_file 写 test_snake.py -> run_command 跑测试出现 1-2 次失败 -> agent 读报错自纠 -> 全部通过 -> run_command 运行 python snake.py --demo demo_inputs.txt 自动播放 -> 打印"游戏结束"与总分 -> 输出总结与统计
 - 加分彩蛋：agent 完成后，另开一个终端运行 python snake.py，亲自用 W/A/S/D 玩 5 秒，展示交互模式真实可玩。
@@ -67,9 +67,9 @@ python agent.py "阅读 TASK.md，按规格从零实现终端贪吃蛇游戏，�
 
 - 用真实 API 预演一遍镜头 3（glm-4.5-air 费用很低）：
 ```powershell
-python agent.py "阅读 TASK.md，按规格从零实现终端贪吃蛇游戏，补充单元测试并运行到全绿" --workspace demo/snake_game --auto-approve
+python agent.py "阅读 TASK.md，按规格从零实现终端贪吃蛇游戏，补充单元测试并运行到全绿" --workspace demo/snake_game --auto-approve --max-turns 40
 ```
-- 贪吃蛇实现量比小工具大，预演重点看：轮数是否在 30 上限内、是否出现 1-2 次"失败-自纠"、--demo 模式能否正常退出。若轮数偏高，可考虑收紧规格（如去掉 W/A/S/D 改为任意四键、棋盘改小）。
+- 贪吃蛇实现量比小工具大：规格已内置实现提示（蛇身 deque 约定、自撞判定排除蛇尾、180 度掉头忽略等）。预演重点看：轮数是否在 40 上限内、是否出现 1-2 次"失败-自纠"、--demo 模式能否正常退出。此前曾因自撞判定卡满 30 轮，如再复现可收紧规格（棋盘改小、简化掉头规则）。
 - 备选方案（若贪吃蛇表现不稳）：回退到已验证过的 wordfreq 任务——"给 wordfreq.py 增加 --top N 参数并补测试跑全绿"，其余镜头不变。
 - 想完全离线排练界面与交互可用 mock server（scripts/mock_server.py），但任务实际效果以真实 API 预演为准。
 - 镜头 3 若出现意外长停顿，直接剪掉等模型的时间，用加速画面拼接。
