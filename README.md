@@ -14,7 +14,7 @@ Nihue 是南京大学软件工程专业推免项目作品：个人独立设计�
 - 会话保存 / 恢复：历史落盘为 JSONL，`--resume` 随时续接；`/sessions` 方向键选择恢复（标题取首条用户消息），`/sessions resume <名称>` 直接切换
 - 技能（skill）：渐进式披露的指令包——启动只注入技能名与简介，模型按需 `use_skill` 拉取完整步骤；内置写测试/代码审查/提交整理三个示例技能
 - 计划模式：`--plan` 先输出计划、人工确认后执行
-- 思考过程展示：模型的 `reasoning_content` 以灰色实时显示（`--no-reasoning` 关闭）
+- 思考过程展示：模型的 `reasoning_content` 以灰色实时显示（`--reasoning-limit N` 设字数上限，`0` 不限制；`--no-reasoning` 关闭）
 
 ## 快速开始
 
@@ -85,6 +85,7 @@ function nihue { python "D:\你的路径\agent.py" @args }
 | `--auto-approve` | 自动放行所有命令（仅限可信环境/录制演示） | 关 |
 | `--plan` | 计划模式：先出计划、确认后执行 | 关 |
 | `--no-reasoning` | 隐藏模型思考过程 | 关 |
+| `--reasoning-limit N` | 思考过程展示字数上限（0 不限制） | 120 |
 | `--context-budget` | 触发历史压缩的 token 预算 | 24000 |
 | `--resume SESSION` | 恢复会话 | - |
 | `--list-sessions` | 列出已保存会话 | - |
@@ -123,7 +124,7 @@ coding_agent/
 scripts/mock_server.py      离线模拟服务端（演练用，非 agent 组成部分）
 demo/                       演示任务现场（wordfreq.py 与单元测试）
 .nihue/skills/              内置示例技能（写测试/代码审查/提交整理）
-tests/                      65 个离线单元测试
+tests/                      83 个离线单元测试
 ```
 
 主循环（每轮）：
@@ -155,7 +156,7 @@ tests/                      65 个离线单元测试
 全部测试离线可跑，不依赖网络与 API Key：
 
 ```bash
-python -m unittest discover -s tests -v   # 65 个用例
+python -m unittest discover -s tests -v   # 83 个用例
 ```
 
 覆盖：配置加载与凭据脱敏、SSE 流式解析（本地模拟服务端）、重试与错误分类、路径沙箱、命令确认/拦截/超时、上下文压缩、主循环终止条件、并行执行、计划模式。
