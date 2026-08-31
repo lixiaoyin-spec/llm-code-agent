@@ -9,7 +9,7 @@
 | --- | --- | --- | --- | --- |
 | 1 开场 | 0:00-0:08 | 终端输入 nihue 启动，logo 与全宽输入栏出现 | 一句话介绍 Nihue：自研编程智能体，基于智谱 glm-4.5-air | CLI 入口、logo、彩色 UI、模型与工作目录展示 |
 | 2 命令与技能 | 0:08-0:18 | 输入 /help，再输入 /skills | 内置命令体系；技能只注入简介、按需加载 | /help、/skills、技能系统 |
-| 3 核心任务 | 0:18-0:46 | 输入网页贪吃蛇任务（加 --auto-approve），录制后 2-4 倍速；结尾浏览器试玩几秒 | 主循环：读任务规格、从零实现游戏逻辑/页面/测试、失败后自纠、全绿后模拟验收 | 主循环、工具调用（read/write/replace/run）、错误自纠闭环、终止条件、统计输出 |
+| 3 核心任务 | 0:18-0:46 | 输入网页井字棋任务（加 --auto-approve），录制后 2-4 倍速；结尾浏览器对战几秒 | 主循环：读任务规格、从零实现游戏逻辑/页面/测试、失败后自纠、全绿后模拟对局 | 主循环、工具调用（read/write/replace/run）、错误自纠闭环、终止条件、统计输出 |
 | 4 命令审批 | 0:46-0:56 | 再提一个会执行命令的小任务（不加 --auto-approve），出现 y/n/a/s 提示，按 y | 默认每个命令人工确认，演示为流畅才自动放行 | 命令审批 y/n/a/s、--auto-approve |
 | 5 安全边界 | 0:56-1:02 | 让 agent 往工作目录之外写文件，被沙箱拒绝 | 文件操作限制在工作目录内，危险命令另有防呆拦截 | 路径沙箱、危险命令拦截 |
 | 6 会话恢复 | 1:02-1:12 | /sessions 打开方向键选择器，选一个旧会话，展示历史回放（含工具明细），/exit 保存 | 会话自动落盘、标题取第一条用户消息、可随时恢复继续 | /sessions、会话标题、历史回放、--resume |
@@ -31,11 +31,11 @@
 ### 镜头 3 核心任务（28s 执行画面，录制后加速）
 - 命令：
 ```powershell
-python agent.py "阅读 TASK.md，按规格从零实现网页端贪吃蛇游戏，补充单元测试并运行到全绿" --workspace demo/snake_game --auto-approve --max-turns 60
+python agent.py "阅读 TASK.md，按规格从零实现网页端井字棋游戏，补充单元测试并运行到全绿" --workspace demo/tic_tac_toe --auto-approve --max-turns 60
 ```
-- 预期画面：read_file 读 TASK.md 规格 -> write_file 写 index.html/game.js/style.css -> write_file 写 game.test.js -> run_command 跑 node --test 出现 1-2 次失败 -> agent 读报错自纠 -> 全部通过 -> run_command 运行 node simulate.js demo_inputs.txt 逐帧打印动画 -> 打印"游戏结束"与总分 -> 输出总结与统计
-- 加分彩蛋：agent 完成后，用 start index.html 打开浏览器，亲自用方向键玩 5 秒，展示网页端真实可玩。
-- 旁白："每一轮把系统提示、历史和工具定义发给模型；模型输出工具调用，本地执行后把结果回传，进入下一轮，直到模型不再调用工具。它先读任务规格，从零实现游戏逻辑、网页与测试，测试失败后自己分析修复，再用命令行模拟模式验收，最后在浏览器里真正跑起来。"
+- 预期画面：read_file 读 TASK.md 规格 -> write_file 写 index.html/game.js/style.css -> write_file 写 game.test.js -> run_command 跑 node --test 出现 1-2 次失败 -> agent 读报错自纠 -> 全部通过 -> run_command 运行 node simulate.js demo_inputs.txt 打印一局完整对局（玩家胜）-> 输出总结与统计
+- 加分彩蛋：agent 完成后，用 start index.html 打开浏览器，亲自跟 AI 对弈一局（AI 会封堵你的连三），展示网页端真实可玩。
+- 旁白："每一轮把系统提示、历史和工具定义发给模型；模型输出工具调用，本地执行后把结果回传，进入下一轮，直到模型不再调用工具。它先读任务规格，从零实现胜负判定、AI 策略与页面，测试失败后自己分析修复，再用命令行模拟模式完整对弈一局，最后在浏览器里真正跑起来。"
 
 ### 镜头 4 命令审批（10s，单独录）
 - 新开目录（或先 /clear），输入："运行 python 打印当前时间"这类快速命令，不加 --auto-approve
@@ -67,10 +67,10 @@ python agent.py "阅读 TASK.md，按规格从零实现网页端贪吃蛇游戏�
 
 - 用真实 API 预演一遍镜头 3（glm-4.5-air 费用很低）：
 ```powershell
-python agent.py "阅读 TASK.md，按规格从零实现网页端贪吃蛇游戏，补充单元测试并运行到全绿" --workspace demo/snake_game --auto-approve --max-turns 60
+python agent.py "阅读 TASK.md，按规格从零实现网页端井字棋游戏，补充单元测试并运行到全绿" --workspace demo/tic_tac_toe --auto-approve --max-turns 60
 ```
-- 贪吃蛇实现量比小工具大：规格已内置实现提示（蛇身数组约定、自撞判定排除蛇尾、180 度掉头忽略等）。预演重点看：轮数是否在 60 上限内、node --test 是否出现 1-2 次"失败-自纠"、node simulate.js 能否正常退出。此前曾因自撞判定卡满 30 轮，如再复现可收紧规格（棋盘改小、简化掉头规则）。
-- 备选方案（若贪吃蛇表现不稳）：回退到已验证过的 wordfreq 任务——"给 wordfreq.py 增加 --top N 参数并补测试跑全绿"，其余镜头不变。
+- 井字棋实现量小、逻辑可控：规格已内置实现提示（棋盘数组约定、8 个三元组判胜、AI 优先级顺序等）。预演重点看：轮数是否在 60 上限内（预期 10-15 轮）、node --test 是否出现 1-2 次"失败-自纠"、node simulate.js 能否正常退出。
+- 备选方案（若井字棋表现不稳）：回退到已验证过的 wordfreq 任务——"给 wordfreq.py 增加 --top N 参数并补测试跑全绿"，其余镜头不变。
 - 想完全离线排练界面与交互可用 mock server（scripts/mock_server.py），但任务实际效果以真实 API 预演为准。
 - 镜头 3 若出现意外长停顿，直接剪掉等模型的时间，用加速画面拼接。
 
@@ -78,7 +78,7 @@ python agent.py "阅读 TASK.md，按规格从零实现网页端贪吃蛇游戏�
 
 - 分镜头录、后剪辑：执行段（镜头 3）2-4 倍速，讲解段常速，总时长留到 1:50 左右。
 - 全程不得出现 API Key：Key 只放环境变量，录屏不要打开 config.local.json、.env，不要 echo Key。
-- 录完恢复现场：git clean -fd demo/snake_game 清除 agent 生成的未跟踪文件（index.html、game.js 等）；若规格文件被改动再 git restore demo/snake_game。
+- 录完恢复现场：git clean -fd demo/tic_tac_toe 清除 agent 生成的未跟踪文件（index.html、game.js 等）；若规格文件被改动再 git restore demo/tic_tac_toe。
 - 导出：1080p、mp4（H.264）、小于 200MB。
 - 语音：先录画面再配旁白更稳，也可以边录边讲。
 
