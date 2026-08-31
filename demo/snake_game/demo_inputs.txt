@@ -4,10 +4,15 @@ right
 right
 down
 down
+down
 left
 left
 left
 left
+down
+down
+down
+down
 down
 down
 down
