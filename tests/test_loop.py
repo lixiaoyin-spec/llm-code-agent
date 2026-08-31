@@ -96,6 +96,16 @@ class LoopTest(unittest.TestCase):
         self.assertEqual(stats.stop_reason, "model_finished")
         self.assertEqual(stats.turns, 1)
 
+    def test_truncated_reply_auto_resumes(self):
+        truncated = AssistantTurn(content="写到一半", finish_reason="length")
+        final = AssistantTurn(content="完成")
+        client = ScriptedClient([truncated, final])
+        agent, store, ui = make_agent(self.tmp, client, max_turns=30)
+        stats = agent.run("写代码")
+        self.assertEqual(stats.stop_reason, "model_finished")
+        self.assertEqual(stats.turns, 2)
+        self.assertIn("被截断", store.messages[-2]["content"])
+
     def test_repetition_detection(self):
         client = ScriptedClient([turn("x", [read_call("c1", "a.txt")])] * 100)
         agent, store, ui = make_agent(self.tmp, client, max_turns=10)

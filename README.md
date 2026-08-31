@@ -80,7 +80,7 @@ function nihue { python "D:\你的路径\agent.py" @args }
 | `--base-url` | OpenAI 兼容接口地址 | DeepSeek 官方 |
 | `--api-key` | API Key（推荐用环境变量） | - |
 | `--max-turns` | 最大轮数 | 60 |
-| `--max-tokens` | 单次回复最大 token | 4096 |
+| `--max-tokens` | 单次回复最大 token | 8192 |
 | `--temperature` | 采样温度 | 0.2 |
 | `--auto-approve` | 自动放行所有命令（仅限可信环境/录制演示） | 关 |
 | `--plan` | 计划模式：先出计划、确认后执行 | 关 |

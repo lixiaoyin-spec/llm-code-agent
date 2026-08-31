@@ -106,6 +106,11 @@ class Agent:
                 self.stats.prompt_tokens += turn.usage.prompt_tokens
             self.stats.completion_tokens += turn.usage.completion_tokens
 
+            if turn.finish_reason == "length" and not turn.tool_calls:
+                self.ui.warn("模型回复达到单次回复上限被截断，自动续跑（可用 --max-tokens 调大）。")
+                self.store.add_user("（系统提示）你的上一条回复因长度限制被截断，任务尚未完成。请从断点继续：直接调用工具完成剩余工作，不要重复已完成步骤，也无需输出长篇推演。")
+                continue
+
             if not turn.tool_calls:
                 if self._plan_pending:
                     self._plan_pending = False
