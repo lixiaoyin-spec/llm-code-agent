@@ -63,7 +63,7 @@ class Config:
     model: str = DEFAULT_MODEL
     workspace: Path = field(default_factory=Path.cwd)
     max_turns: int = 60
-    max_tokens: int = 8192
+    max_tokens: int = 81920
     temperature: float = 0.2
     auto_approve: bool = False
     plan_first: bool = False
