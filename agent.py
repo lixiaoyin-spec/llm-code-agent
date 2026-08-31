@@ -41,6 +41,7 @@ HELP_TEXT = """内置命令：
   /sessions resume <名称>  切换会话
   /skills   列出可用技能
   /stats    显示当前任务统计
+  /max-turns <N>  调整单任务轮数上限（默认 30）
   /exit     保存会话并退出"""
 
 
@@ -115,6 +116,17 @@ def run_repl(agent: Agent, ui: UI, session_path: Path | None, skills: SkillRegis
             continue
         if line == "/stats":
             ui.info(format_stats(agent.store, agent.stats))
+            continue
+        if line.startswith("/max-turns "):
+            try:
+                value = int(line.split(maxsplit=1)[1])
+                if value < 1:
+                    raise ValueError
+            except ValueError:
+                ui.warn("用法：/max-turns <正整数>（例如 /max-turns 60）")
+                continue
+            agent.config.max_turns = value
+            ui.info(f"已调整单任务轮数上限为 {value}。")
             continue
         if line == "/sessions":
             entries = list_sessions()
