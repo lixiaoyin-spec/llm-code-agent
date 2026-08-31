@@ -115,7 +115,7 @@ def run_repl(agent: Agent, ui: UI, session_path: Path | None, skills: SkillRegis
                 ui.info("当前无需压缩，或压缩失败。")
             continue
         if line == "/stats":
-            ui.info(format_stats(agent.store, agent.stats))
+            ui.summary(format_stats(agent.store, agent.stats))
             continue
         if line.startswith("/max-turns "):
             try:
@@ -170,7 +170,7 @@ def run_repl(agent: Agent, ui: UI, session_path: Path | None, skills: SkillRegis
             ui.warn(f"未知命令：{line}（/help 查看内置命令）")
             continue
         stats = agent.run(line)
-        ui.info(format_stats(agent.store, stats))
+        ui.summary(format_stats(agent.store, stats))
         if session_path is not None:
             save_session(session_path, agent.store)
 
@@ -247,7 +247,7 @@ def main(argv: list[str] | None = None) -> int:
     ui.info(f"模型：{config.model} ｜ 工作目录：{config.workspace}")
     if task:
         stats = agent.run(task)
-        ui.info(format_stats(agent.store, stats))
+        ui.summary(format_stats(agent.store, stats))
     else:
         session_path = run_repl(agent, ui, session_path, skills)
 

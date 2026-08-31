@@ -164,7 +164,7 @@ class Agent:
 
         for call, result in zip(calls, results):
             assert result is not None
-            preview = result.output.replace("\n", " ")[:120]
+            preview = result.output
             self.ui.tool_call(call.name, self._args_preview(call))
             self.ui.tool_result(call.name, result.ok, preview, result.duration_ms)
             self.stats.tool_calls += 1
@@ -195,10 +195,22 @@ class Agent:
         )
 
 
+def _humanize_count(count: int) -> str:
+    if count >= 1000:
+        return f"{count / 1000:.1f}k"
+    return str(count)
+
+
 def format_stats(store: MessageStore, stats: RunStats) -> str:
-    return (
-        f"停止原因：{stats.stop_reason or '-'} ｜ 轮数 {stats.turns} ｜ "
-        f"工具调用 {stats.tool_calls} 次（失败 {stats.tool_failures}）｜ "
-        f"耗时 {stats.wall_seconds:.1f}s ｜ 上下文约 {store.estimated_tokens()} tokens"
-        f"（压缩 {store.compaction_count} 次）"
-    )
+    parts: list[str] = []
+    if not stats.finished_naturally:
+        parts.append(f"停止：{stats.stop_reason}")
+    parts.append(f"用时 {stats.wall_seconds:.1f}s")
+    parts.append(f"{stats.turns} 轮")
+    parts.append(f"工具调用 {stats.tool_calls} 次（失败 {stats.tool_failures}）")
+    parts.append(f"上下文 {_humanize_count(store.estimated_tokens())} tokens")
+    if stats.completion_tokens:
+        parts.append(f"输出 {_humanize_count(stats.completion_tokens)} tokens")
+    if store.compaction_count:
+        parts.append(f"压缩 {store.compaction_count} 次")
+    return " · ".join(parts)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import time
 import sys
 from typing import Any, TextIO
 
@@ -78,6 +79,45 @@ def _format_duration(ms: int) -> str:
     if ms < 60_000:
         return f"{ms / 1000:.1f}s"
     return f"{ms // 60_000}m{ms % 60_000 // 1000}s"
+
+
+def _excerpt_text(text: str, max_cols: int = 60) -> str:
+    """压缩空白后的代表片段，按显示宽度截断并加省略号。"""
+    flat = " ".join(text.split())
+    if not flat:
+        return ""
+    if _display_width(flat) <= max_cols:
+        return flat
+    out = ""
+    used = 0
+    for ch in flat:
+        w = 2 if ord(ch) > 0x2E80 else 1
+        if used + w > max_cols - 1:
+            break
+        out += ch
+        used += w
+    return out + "…"
+
+
+def _collapse_preview(preview: str, cols: int, max_segments: int = 4) -> tuple[list[str], bool]:
+    """工具输出折叠：最多展示约 max_segments 行，其余以省略提示代替。"""
+    cols = max(8, cols)
+    segments: list[str] = []
+    truncated = False
+    raw_lines = preview.split("\n")
+    for raw in raw_lines[:3]:
+        for seg in _wrap_display(raw.rstrip("\r"), cols):
+            if len(segments) >= max_segments:
+                truncated = True
+                break
+            segments.append(seg)
+        if truncated:
+            break
+    if not truncated and len(raw_lines) > 3:
+        truncated = True
+    if not segments:
+        segments.append("")
+    return segments, truncated
 class UI:
     def __init__(self, color: bool = True, stream: TextIO | None = None):
         self.stream = stream or sys.stdout
@@ -144,14 +184,16 @@ class UI:
             if not chunk.strip():
                 return
             self.newline()
-            self._reasoning_width = self._term_width()
-            self._reasoning_buf = ""
-            self._write(self.paint("dim", "┌─ 思考 " + "─" * max(0, self._reasoning_width - 7) + "┐") + "\n")
             self._reasoning_started = True
+            self._reasoning_start = time.monotonic()
+            self._reasoning_last = 0.0
+            self._reasoning_buf = ""
+            self._write(self.paint("dim", "✻ 思考中"))
         self._reasoning_buf += chunk.replace("\r\n", "\n")
-        while "\n" in self._reasoning_buf:
-            line, self._reasoning_buf = self._reasoning_buf.split("\n", 1)
-            self._render_reasoning_line(line)
+        now = time.monotonic()
+        if now - self._reasoning_last >= 0.2:
+            self._reasoning_last = now
+            self._write("\r\x1b[2K" + self.paint("dim", f"✻ 思考 {now - self._reasoning_start:.1f}s"))
 
     def _flush_reasoning(self) -> None:
         if not getattr(self, "_reasoning_started", False):
@@ -159,17 +201,15 @@ class UI:
         if not self.color:
             self._reasoning_started = False
             return
-        if getattr(self, "_reasoning_buf", ""):
-            self._render_reasoning_line(self._reasoning_buf)
-        self._reasoning_buf = ""
-        self._write(self.paint("dim", "└" + "─" * max(0, self._reasoning_width - 2) + "┘") + "\n")
+        seconds = time.monotonic() - getattr(self, "_reasoning_start", 0.0)
+        max_cols = max(16, self._term_width() - 20)
+        excerpt = _excerpt_text(getattr(self, "_reasoning_buf", ""), max_cols)
+        text = f"✻ 思考 {seconds:.1f}s"
+        if excerpt:
+            text += " · " + excerpt
+        self._write("\r\x1b[2K" + self.paint("dim", text) + "\n")
         self._reasoning_started = False
-
-    def _render_reasoning_line(self, line: str) -> None:
-        inner = max(8, self._reasoning_width - 4)
-        for seg in _wrap_display(line, inner):
-            pad = self._reasoning_width - 3 - _display_width(seg)
-            self._write(self.paint("dim", "│ " + seg + " " * max(0, pad) + "│") + "\n")
+        self._reasoning_buf = ""
 
     def end_turn(self) -> None:
         self._flush_reasoning()
@@ -187,7 +227,7 @@ class UI:
         if not self.color:
             self._write(f">> {name}({args_preview})\n")
             return
-        line = self.paint("cyan", "▸ " + name)
+        line = self.paint("cyan", "● " + name)
         if args_preview:
             line += " " + self.paint("dim", args_preview)
         self._write(line + "\n")
@@ -195,17 +235,25 @@ class UI:
     def tool_result(self, name: str, ok: bool, preview: str, duration_ms: int) -> None:
         if not self.color:
             marker = "OK" if ok else "FAIL"
-            self._write(f"  [{marker}] {name} ({duration_ms}ms) -> {preview}\n")
+            shown = " ".join(preview.split())
+            if len(shown) > 200:
+                shown = shown[:200] + "…"
+            self._write(f"  [{marker}] {name} ({duration_ms}ms) -> {shown}\n")
             return
-        status = self.paint("green", "✓") if ok else self.paint("red", "✗")
-        prefix = "  " + status + " "
-        lead = "  " + ("✓" if ok else "✗") + " " + _format_duration(duration_ms) + " · "
+        glyph = self.paint("green", "⎿") if ok else self.paint("red", "⎿")
+        lead = "  " + "⎿" + " " + _format_duration(duration_ms) + " · "
         cols = max(24, self._term_width() - _display_width(lead))
-        segments = _wrap_display(preview, cols)
-        self._write(prefix + self.paint("dim", _format_duration(duration_ms) + " · " + segments[0]) + "\n")
+        segments, truncated = _collapse_preview(preview, cols)
+        self._write("  " + glyph + " " + self.paint("dim", _format_duration(duration_ms) + " · " + segments[0]) + "\n")
         indent = " " * _display_width(lead)
         for seg in segments[1:]:
             self._write(indent + self.paint("dim", seg) + "\n")
+        if truncated:
+            self._write(indent + self.paint("dim", "…（输出较多，已省略，完整内容已反馈给模型）") + "\n")
+
+    def summary(self, text: str) -> None:
+        self.newline()
+        self._write(self.paint("dim", "✻ " + text + "\n"))
     def info(self, text: str) -> None:
         self.newline()
         self._write(self.paint("dim", f"- {text}\n"))

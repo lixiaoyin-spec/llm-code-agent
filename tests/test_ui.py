@@ -123,18 +123,15 @@ class MarkdownRenderTests(unittest.TestCase):
         self.assertEqual(out.count("标题"), 1)
 
 class ReasoningAndToolRenderTests(unittest.TestCase):
-    def test_reasoning_box_renders_and_closes(self):
+    def test_reasoning_summary_replaces_live_indicator(self):
         stream = io.StringIO()
         ui = UI(color=False, stream=stream)
         ui.color = True
-        ui.stream_reasoning("用户想知道这是什么项目。\n我应该先查看目录结构。")
+        ui.stream_reasoning("用户想知道这是什么项目。我应该先查看目录结构。")
         ui.end_turn()
         out = stream.getvalue()
-        self.assertIn("┌─ 思考", out)
-        self.assertIn("│ 用户想知道这是什么项目。", out)
-        self.assertIn("│ 我应该先查看目录结构。", out)
-        self.assertEqual(out.count("└"), 1)
-
+        self.assertIn("✻ 思考中", out)
+        self.assertRegex(out, r"✻ 思考 \d+\.\d+s · 用户想知道")
     def test_reasoning_pipe_passthrough(self):
         stream = io.StringIO()
         ui = UI(color=False, stream=stream)
@@ -150,13 +147,22 @@ class ReasoningAndToolRenderTests(unittest.TestCase):
         ui.tool_result("list_files", True, "file 16 demo_inputs.txt", 3)
         ui.tool_result("run_command", False, "命令执行超时", 122368)
         out = stream.getvalue()
-        self.assertIn("▸ list_files", out)
+        self.assertIn("● list_files", out)
         self.assertIn('{"path": "."}', out)
-        self.assertIn("✓", out)
+        self.assertIn("⎿", out)
         self.assertIn("3ms · file 16 demo_inputs.txt", out)
-        self.assertIn("✗", out)
         self.assertIn("2m2s", out)
 
+    def test_tool_result_collapses_long_output(self):
+        stream = io.StringIO()
+        ui = UI(color=False, stream=stream)
+        ui.color = True
+        long_output = "\n".join("line-" + str(i) + " " + "x" * 60 for i in range(12))
+        ui.tool_result("read_file", True, long_output, 8)
+        out = stream.getvalue()
+        self.assertIn("line-0", out)
+        self.assertIn("省略", out)
+        self.assertNotIn("line-11", out)
     def test_tool_output_pipe_passthrough(self):
         stream = io.StringIO()
         ui = UI(color=False, stream=stream)
