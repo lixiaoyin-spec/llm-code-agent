@@ -11,3 +11,5 @@ config.json
 推免考核题目学生版.pdf
 .pytest_cache/
 scratch/
+
+demo/todo_cli/todo.json

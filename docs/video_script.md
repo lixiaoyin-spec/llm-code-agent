@@ -9,7 +9,7 @@
 | --- | --- | --- | --- | --- |
 | 1 开场 | 0:00-0:08 | 终端输入 nihue 启动，logo 与全宽输入栏出现 | 一句话介绍 Nihue：自研编程智能体，基于智谱 glm-4.5-air | CLI 入口、logo、彩色 UI、模型与工作目录展示 |
 | 2 命令与技能 | 0:08-0:18 | 输入 /help，再输入 /skills | 内置命令体系；技能只注入简介、按需加载 | /help、/skills、技能系统 |
-| 3 核心任务 | 0:18-0:46 | 输入 wordfreq 任务（加 --auto-approve），录制后 2-4 倍速 | 主循环：模型输出工具调用、本地执行、结果回传；测试失败一次后自纠修复直到全绿 | 主循环、工具调用（read/write/replace/run）、错误自纠闭环、终止条件、统计输出 |
+| 3 核心任务 | 0:18-0:46 | 输入 todo 任务（加 --auto-approve），录制后 2-4 倍速 | 主循环：读任务规格、从零写程序与测试、跑测试、失败后自纠、全部通过 | 主循环、工具调用（read/write/replace/run）、错误自纠闭环、终止条件、统计输出 |
 | 4 命令审批 | 0:46-0:56 | 再提一个会执行命令的小任务（不加 --auto-approve），出现 y/n/a/s 提示，按 y | 默认每个命令人工确认，演示为流畅才自动放行 | 命令审批 y/n/a/s、--auto-approve |
 | 5 安全边界 | 0:56-1:02 | 让 agent 往工作目录之外写文件，被沙箱拒绝 | 文件操作限制在工作目录内，危险命令另有防呆拦截 | 路径沙箱、危险命令拦截 |
 | 6 会话恢复 | 1:02-1:12 | /sessions 打开方向键选择器，选一个旧会话，展示历史回放（含工具明细），/exit 保存 | 会话自动落盘、标题取第一条用户消息、可随时恢复继续 | /sessions、会话标题、历史回放、--resume |
@@ -31,10 +31,10 @@
 ### 镜头 3 核心任务（28s 执行画面，录制后加速）
 - 命令：
 ```powershell
-python agent.py "给 wordfreq.py 增加一个 --top N 命令行参数：按词频从高到低只输出前 N 个词（默认输出全部），并补充对应单元测试，运行测试确保全部通过" --workspace demo --auto-approve
+python agent.py "阅读 TASK.md，按规格从零实现 todo 命令行应用，补充单元测试并运行到全绿" --workspace demo/todo_cli --auto-approve
 ```
-- 预期画面：list_files/read_file 先看现状 -> 改 wordfreq.py -> 补测试 -> run_command 跑测试失败一次 -> agent 读报错自纠 -> 全部通过 -> --help 与 --top 实测 -> 输出总结与统计
-- 旁白："每一轮把系统提示、历史和工具定义发给模型；模型输出工具调用，本地执行后把结果回传，进入下一轮，直到模型不再调用工具。中间测试失败过一次，agent 自己分析错误并修复，这就是错误回传闭环。"
+- 预期画面：read_file 读 TASK.md 规格 -> write_file 从零写 todo.py -> write_file 写 test_todo.py -> run_command 跑测试出现 1-2 次失败 -> agent 读报错自纠 -> 全部通过 -> 手动跑 add/list/done 冒烟 -> 输出总结与统计
+- 旁白："每一轮把系统提示、历史和工具定义发给模型；模型输出工具调用，本地执行后把结果回传，进入下一轮，直到模型不再调用工具。它先读任务规格，从零写出程序与测试，中间测试失败过一次，agent 自己分析错误并修复，这就是错误回传闭环。"
 
 ### 镜头 4 命令审批（10s，单独录）
 - 新开目录（或先 /clear），输入："运行 python 打印当前时间"这类快速命令，不加 --auto-approve
@@ -62,21 +62,22 @@ python agent.py "给 wordfreq.py 增加一个 --top N 命令行参数：按词�
 - 画面：仓库根目录与 README.md
 - 旁白："整个过程没有使用任何 agent 框架，核心逻辑全部自研，每个设计决策都可以解释。谢谢观看。"
 
-## 录制前预演（不烧 token、不受网络影响）
+## 录制前预演
 
+- 用真实 API 预演一遍镜头 3（glm-4.5-air 费用很低）：
 ```powershell
-python scripts/mock_server.py --port 8765 --scenario topn
-python agent.py "给 wordfreq.py 增加一个 --top N 命令行参数：按词频从高到低只输出前 N 个词（默认输出全部），并补充对应单元测试，运行测试确保全部通过" -w demo --base-url http://127.0.0.1:8765/api --api-key mock --auto-approve
+python agent.py "阅读 TASK.md，按规格从零实现 todo 命令行应用，补充单元测试并运行到全绿" --workspace demo/todo_cli --auto-approve
 ```
-
-- 真实录制前先用 mock 预演一遍镜头 3，确认流程稳定后再连真实 API。
+- 记录轮数与整体耗时，确认 1-2 次"失败-自纠"画面稳定出现；若预演一次就全绿没有失败画面，镜头 3 旁白改讲错误闭环机制即可，不强求。
+- 备选方案（若 todo 任务表现不稳）：回退到已验证过的 wordfreq 任务——"给 wordfreq.py 增加 --top N 参数并补测试跑全绿"，其余镜头不变。
+- 想完全离线排练界面与交互可用 mock server（scripts/mock_server.py），但任务实际效果以真实 API 预演为准。
 - 镜头 3 若出现意外长停顿，直接剪掉等模型的时间，用加速画面拼接。
 
 ## 录制与剪辑注意
 
 - 分镜头录、后剪辑：执行段（镜头 3）2-4 倍速，讲解段常速，总时长留到 1:50 左右。
 - 全程不得出现 API Key：Key 只放环境变量，录屏不要打开 config.local.json、.env，不要 echo Key。
-- 录完恢复现场：git restore demo/（或把 wordfreq 的修复作为独立 commit 提交，也能体现真实产出）。
+- 录完恢复现场：git restore demo/ 并删除 todo.json（已在 .gitignore 中，不影响提交）。
 - 导出：1080p、mp4（H.264）、小于 200MB。
 - 语音：先录画面再配旁白更稳，也可以边录边讲。
 
