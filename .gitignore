@@ -12,4 +12,3 @@ config.json
 .pytest_cache/
 scratch/
 
-demo/todo_cli/todo.json
