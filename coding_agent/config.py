@@ -68,6 +68,7 @@ class Config:
     auto_approve: bool = False
     plan_first: bool = False
     show_reasoning: bool = True
+    reasoning_limit: int = 120
     color: bool = True
     verbose: bool = False
     save_session: bool = True
@@ -107,7 +108,7 @@ class Config:
             "context_budget", "keep_recent", "request_timeout", "connect_timeout",
             "max_retries", "retry_backoff", "read_max_bytes", "read_max_lines",
             "tool_output_chars", "search_max_matches", "auto_approve", "plan_first",
-            "show_reasoning", "color", "verbose", "save_session", "extra_system",
+            "show_reasoning", "reasoning_limit", "color", "verbose", "save_session", "extra_system",
         )
         for key in file_keys:
             if key in file_values:
@@ -138,6 +139,8 @@ class Config:
             raise ConfigError(f"工作目录不存在：{self.workspace}")
         if self.max_turns < 1:
             raise ConfigError("max_turns 必须 >= 1")
+        self.reasoning_limit = max(0, self.reasoning_limit)
+
         if not 0 < self.temperature <= 1.5:
             raise ConfigError("temperature 必须在 (0, 1.5] 区间")
         if self.max_tokens < 64:

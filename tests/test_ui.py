@@ -150,6 +150,17 @@ class ReasoningAndToolRenderTests(unittest.TestCase):
         self.assertIn("用户想知道这是什么项目。", out)
         self.assertIn("我应该先查看目录结构。", out)
         self.assertRegex(out, r"✻ 思考 \d+\.\d+s")
+
+    def test_reasoning_limit_truncates_with_ellipsis(self):
+        stream = io.StringIO()
+        ui = UI(color=False, stream=stream, reasoning_limit=10)
+        ui.color = True
+        ui.stream_reasoning("一二三四五六七八九十十一\n第二行不会显示")
+        ui.end_turn()
+        out = stream.getvalue()
+        self.assertIn("一二三四五六七八九十…", out)
+        self.assertNotIn("十一", out)
+        self.assertNotIn("第二行不会显示", out)
     def test_reasoning_pipe_passthrough(self):
         stream = io.StringIO()
         ui = UI(color=False, stream=stream)

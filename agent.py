@@ -42,6 +42,7 @@ HELP_TEXT = """内置命令：
   /skills   列出可用技能
   /stats    显示当前任务统计
   /max-turns <N>  调整单任务轮数上限（默认 60）
+  /reasoning-limit <N>  调整思考展示字数上限（0 不限制，默认 120）
   /exit     保存会话并退出"""
 
 
@@ -61,6 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--auto-approve", action="store_true", help="自动放行所有命令（仅限可信环境/录制演示）")
     parser.add_argument("--plan", action="store_true", help="先输出计划，人工确认后再执行")
     parser.add_argument("--no-reasoning", action="store_true", help="隐藏模型思考过程")
+    parser.add_argument("--reasoning-limit", type=int, help="思考过程展示字数上限，超出以省略号截断，默认 120（0 为不限制）")
     parser.add_argument("--no-color", action="store_true", help="关闭彩色输出")
     parser.add_argument("--no-save", action="store_true", help="不保存会话记录")
     parser.add_argument("--context-budget", type=int, help="触发历史压缩的 token 预算，默认 24000")
@@ -85,6 +87,7 @@ def cli_overrides(args: argparse.Namespace) -> dict:
         "auto_approve": True if args.auto_approve else None,
         "plan_first": True if args.plan else None,
         "show_reasoning": False if args.no_reasoning else None,
+        "reasoning_limit": args.reasoning_limit,
         "color": False if args.no_color else None,
         "save_session": False if args.no_save else None,
         "verbose": True if args.verbose else None,
@@ -127,6 +130,18 @@ def run_repl(agent: Agent, ui: UI, session_path: Path | None, skills: SkillRegis
                 continue
             agent.config.max_turns = value
             ui.info(f"已调整单任务轮数上限为 {value}。")
+            continue
+        if line.startswith("/reasoning-limit "):
+            try:
+                value = int(line.split(maxsplit=1)[1])
+                if value < 0:
+                    raise ValueError
+            except ValueError:
+                ui.warn("用法：/reasoning-limit <非负整数>（0 为不限制，例如 /reasoning-limit 120）")
+                continue
+            agent.config.reasoning_limit = value
+            ui.reasoning_limit = value
+            ui.info(f"已调整思考过程展示上限为 {value} 字（0 为不限制）。")
             continue
         if line == "/sessions":
             entries = list_sessions()
@@ -185,7 +200,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"配置错误：{exc}")
         return 1
 
-    ui = UI(color=config.color)
+    ui = UI(color=config.color, reasoning_limit=config.reasoning_limit)
 
     if args.list_sessions:
         entries = list_sessions()

@@ -103,14 +103,14 @@ def _collapse_preview(preview: str, cols: int, max_lines: int = 8, max_segments:
         segments.append("")
     return segments, max(0, len(raw_lines) - shown)
 class UI:
-    def __init__(self, color: bool = True, stream: TextIO | None = None):
+    def __init__(self, color: bool = True, stream: TextIO | None = None, reasoning_limit: int = 0):
         self.stream = stream or sys.stdout
         self.color = bool(color) and self.stream.isatty()
         self._mid_line = False
         self._markdown = None
+        self.reasoning_limit = max(0, int(reasoning_limit))
         if os.name == "nt" and self.color:
             self._enable_vt()
-
     @staticmethod
     def _enable_vt() -> None:
         try:
@@ -172,6 +172,7 @@ class UI:
             self._reasoning_start = time.monotonic()
             self._reasoning_last = 0.0
             self._reasoning_buf = ""
+            self._reasoning_shown = 0
             self._write(self.paint("dim", "✻ 思考") + "\n")
             self._write(self.paint("dim", "✻ 思考中 0.0s"))
         self._reasoning_buf += chunk.replace("\r\n", "\n")
@@ -186,8 +187,20 @@ class UI:
             self._write("\r\x1b[2K" + self.paint("dim", f"✻ 思考中 {now - self._reasoning_start:.1f}s"))
 
     def _reasoning_text_line(self, line: str) -> None:
+        limit = getattr(self, "reasoning_limit", 0)
+        if limit <= 0:
+            self._write("\r\x1b[2K" + self.paint("dim", line) + "\n")
+            return
+        shown = getattr(self, "_reasoning_shown", 0)
+        if shown >= limit:
+            return
+        remaining = limit - shown
+        if len(line) > remaining:
+            self._reasoning_shown = limit
+            self._write("\r\x1b[2K" + self.paint("dim", line[:remaining] + "…") + "\n")
+            return
+        self._reasoning_shown = shown + len(line)
         self._write("\r\x1b[2K" + self.paint("dim", line) + "\n")
-
     def _flush_reasoning(self) -> None:
         if not getattr(self, "_reasoning_started", False):
             return

@@ -22,6 +22,7 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(cfg.api_key, "sk-env-123")
         self.assertEqual(cfg.base_url, DEFAULT_BASE_URL)
         self.assertEqual(cfg.model, DEFAULT_MODEL)
+        self.assertEqual(cfg.reasoning_limit, 120)
 
     def test_env_precedence_over_file(self):
         (self.tmp / "config.local.json").write_text(
@@ -41,6 +42,14 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(cfg.api_key, "sk-file")
         self.assertEqual(cfg.model, "glm-x")
         self.assertEqual(cfg.temperature, 0.5)
+
+    def test_reasoning_limit_from_file(self):
+        (self.tmp / "config.local.json").write_text(
+            '{"api_key": "sk-file", "reasoning_limit": 80}', encoding="utf-8"
+        )
+        with patch.dict(os.environ, {}, clear=True):
+            cfg = Config.from_env(self.tmp)
+        self.assertEqual(cfg.reasoning_limit, 80)
 
     def test_cli_override(self):
         with patch.dict(os.environ, {"ZHIPU_API_KEY": "sk-env"}):
