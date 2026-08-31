@@ -99,25 +99,27 @@ def _excerpt_text(text: str, max_cols: int = 60) -> str:
     return out + "…"
 
 
-def _collapse_preview(preview: str, cols: int, max_segments: int = 4) -> tuple[list[str], bool]:
-    """工具输出折叠：最多展示约 max_segments 行，其余以省略提示代替。"""
+def _collapse_preview(preview: str, cols: int, max_lines: int = 8, max_segments: int = 8) -> tuple[list[str], int]:
+    """工具输出折叠：最多展示 max_lines 行（或 max_segments 个折行段），返回（分段, 未展示行数）。"""
     cols = max(8, cols)
     segments: list[str] = []
-    truncated = False
     raw_lines = preview.split("\n")
-    for raw in raw_lines[:3]:
+    shown = len(raw_lines)
+    for i, raw in enumerate(raw_lines):
+        if i >= max_lines:
+            shown = i
+            break
         for seg in _wrap_display(raw.rstrip("\r"), cols):
             if len(segments) >= max_segments:
-                truncated = True
+                shown = i
                 break
             segments.append(seg)
-        if truncated:
-            break
-    if not truncated and len(raw_lines) > 3:
-        truncated = True
+        else:
+            continue
+        break
     if not segments:
         segments.append("")
-    return segments, truncated
+    return segments, max(0, len(raw_lines) - shown)
 class UI:
     def __init__(self, color: bool = True, stream: TextIO | None = None):
         self.stream = stream or sys.stdout
@@ -241,16 +243,15 @@ class UI:
             self._write(f"  [{marker}] {name} ({duration_ms}ms) -> {shown}\n")
             return
         glyph = self.paint("green", "⎿") if ok else self.paint("red", "⎿")
-        lead = "  " + "⎿" + " " + _format_duration(duration_ms) + " · "
+        lead = "⎿" + " " + _format_duration(duration_ms) + " · "
         cols = max(24, self._term_width() - _display_width(lead))
-        segments, truncated = _collapse_preview(preview, cols)
-        self._write("  " + glyph + " " + self.paint("dim", _format_duration(duration_ms) + " · " + segments[0]) + "\n")
+        segments, remaining = _collapse_preview(preview, cols)
+        self._write(glyph + " " + self.paint("dim", _format_duration(duration_ms) + " · " + segments[0]) + "\n")
         indent = " " * _display_width(lead)
         for seg in segments[1:]:
             self._write(indent + self.paint("dim", seg) + "\n")
-        if truncated:
-            self._write(indent + self.paint("dim", "…（输出较多，已省略，完整内容已反馈给模型）") + "\n")
-
+        if remaining > 0:
+            self._write(indent + self.paint("dim", f"… +{remaining} 行") + "\n")
     def summary(self, text: str) -> None:
         self.newline()
         self._write(self.paint("dim", "✻ " + text + "\n"))
@@ -486,8 +487,8 @@ class TerminalApprover:
 class MarkdownStream:
     """把模型流式输出的 Markdown 渲染为彩色终端文本；颜色关闭时原样透传。
 
-    支持：标题、加粗/斜体、行内代码、围栏代码块、无序/有序列表、引用、水平线；
-    其余内容（表格、链接等）保持原文输出。
+    支持：标题、加粗/斜体、行内代码、围栏代码块、无序/有序列表、引用、
+    水平线与表格；其余内容（链接等）保持原文输出。
     """
 
     _INLINE_RE = re.compile(r"(`[^`]+`|\*\*[^*]+\*\*|\*[^*\s][^*]*\*)")
@@ -497,6 +498,7 @@ class MarkdownStream:
         self._buffer = ""
         self._in_fence = False
         self._fence_lang = ""
+        self._table_lines: list[str] = []
 
     def feed(self, chunk: str) -> None:
         if not chunk:
@@ -507,12 +509,91 @@ class MarkdownStream:
         self._buffer += chunk.replace("\r\n", "\n")
         while "\n" in self._buffer:
             line, self._buffer = self._buffer.split("\n", 1)
-            self._render_line(line)
+            self._feed_line(line)
 
     def flush(self) -> None:
-        if self.ui.color and self._buffer:
+        if not self.ui.color:
+            return
+        if self._buffer and self._is_table_line(self._buffer):
+            self._table_lines.append(self._buffer)
+            self._buffer = ""
+        if self._table_lines:
+            self._flush_table()
+        if self._buffer:
             self._render_line(self._buffer)
         self._buffer = ""
+
+    def _feed_line(self, line: str) -> None:
+        if self._in_fence:
+            self._render_line(line)
+            return
+        if self._is_table_line(line):
+            self._table_lines.append(line)
+            return
+        if self._table_lines:
+            self._flush_table()
+        self._render_line(line)
+
+    @staticmethod
+    def _is_table_line(line: str) -> bool:
+        stripped = line.strip()
+        return stripped.startswith("|") and stripped.endswith("|") and stripped.count("|") >= 2
+
+    @staticmethod
+    def _is_sep_cell(cell: str) -> bool:
+        return bool(re.fullmatch(r":?-{3,}:?", cell.strip()))
+
+    def _flush_table(self) -> None:
+        raw_lines = self._table_lines
+        self._table_lines = []
+        rows: list[list[str]] = []
+        for raw in raw_lines:
+            rows.append([cell.strip() for cell in raw.strip().strip("|").split("|")])
+        rows = [row for row in rows if any(row)]
+        if len(rows) < 2:
+            for raw in raw_lines:
+                self._render_line(raw)
+            return
+        ncols = max(len(row) for row in rows)
+        if ncols < 2 or ncols > 8:
+            for raw in raw_lines:
+                self._render_line(raw)
+            return
+        rows = [row + [""] * (ncols - len(row)) for row in rows]
+        widths = [max(3, max(_display_width(row[c]) for row in rows)) for c in range(ncols)]
+        total = sum(widths) + 3 * ncols + 1
+        if total > max(20, self.ui._term_width()):
+            for raw in raw_lines:
+                self._render_line(raw)
+            return
+        seps = [all(self._is_sep_cell(cell) for cell in row) for row in rows]
+        seps[0] = False
+
+        def render_row(row: list[str], header: bool) -> str:
+            parts: list[str] = []
+            for cell, width in zip(row, widths):
+                plain = cell.replace("\\|", "|")
+                pad = max(0, width - _display_width(plain))
+                text = self._render_inline(plain)
+                if header:
+                    text = self.ui.paint("bold", text)
+                parts.append(text + " " * pad)
+            return "│ " + " │ ".join(parts) + " │"
+
+        ui = self.ui
+        dashes = [("─" * (width + 2)) for width in widths]
+        ui._write(ui.paint("dim", "┌" + "┬".join(dashes) + "┐") + "\n")
+        header_done = False
+        for row, is_sep in zip(rows, seps):
+            if is_sep:
+                ui._write(ui.paint("dim", "├" + "┼".join(dashes) + "┤") + "\n")
+                continue
+            if not header_done:
+                header_done = True
+                ui._write(render_row(row, header=True) + "\n")
+            else:
+                ui._write(render_row(row, header=False) + "\n")
+        ui._write(ui.paint("dim", "└" + "┴".join(dashes) + "┘") + "\n")
 
     def _render_line(self, line: str) -> None:
         ui = self.ui

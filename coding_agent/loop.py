@@ -164,7 +164,7 @@ class Agent:
 
         for call, result in zip(calls, results):
             assert result is not None
-            preview = result.output
+            preview = self._preview_text(result.output)
             self.ui.tool_call(call.name, self._args_preview(call))
             self.ui.tool_result(call.name, result.ok, preview, result.duration_ms)
             self.stats.tool_calls += 1
@@ -172,6 +172,22 @@ class Agent:
                 self.stats.tool_failures += 1
             content = result.output if result.ok else f"错误：{result.output}"
             self.store.add_tool_result(call.id, call.name, content)
+
+    @staticmethod
+    def _preview_text(output: str) -> str:
+        """整理工具输出用于终端展示：去行首空白、压缩连续空行。"""
+        lines: list[str] = []
+        blanks = 0
+        for raw in output.split("\n"):
+            line = raw.strip()
+            if not line:
+                blanks += 1
+                if blanks > 1:
+                    continue
+            else:
+                blanks = 0
+            lines.append(line)
+        return "\n".join(lines)
 
     @staticmethod
     def _args_preview(call: ToolCall) -> str:

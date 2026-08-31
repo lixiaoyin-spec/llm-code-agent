@@ -110,6 +110,21 @@ class MarkdownRenderTests(unittest.TestCase):
         self.assertIn("没有换行的结尾", stream.getvalue())
         self.assertTrue(stream.getvalue().endswith("\n"))
 
+    def test_table_renders_as_box(self):
+        stream = io.StringIO()
+        ui = UI(color=False, stream=stream)
+        ui.color = True
+        md = "| 文件 | 作用 |\n|------|------|\n| index.html | 页面骨架 |\n| game.js | 核心逻辑 |\n"
+        ui.stream_text(md)
+        ui.end_turn()
+        out = stream.getvalue()
+        self.assertIn("┌", out)
+        self.assertIn("├", out)
+        self.assertIn("└", out)
+        self.assertIn("文件", out)
+        self.assertIn("index.html", out)
+        self.assertIn("核心逻辑", out)
+        self.assertNotIn("|------|", out)
     def test_streams_across_arbitrary_chunks(self):
         stream = io.StringIO()
         ui = UI(color=False, stream=stream)
@@ -161,7 +176,7 @@ class ReasoningAndToolRenderTests(unittest.TestCase):
         ui.tool_result("read_file", True, long_output, 8)
         out = stream.getvalue()
         self.assertIn("line-0", out)
-        self.assertIn("省略", out)
+        self.assertIn("… +4 行", out)
         self.assertNotIn("line-11", out)
     def test_tool_output_pipe_passthrough(self):
         stream = io.StringIO()
