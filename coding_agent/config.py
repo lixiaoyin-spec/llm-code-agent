@@ -15,10 +15,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
-DEFAULT_MODEL = "glm-4.5-air"
+DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
+DEFAULT_MODEL = "deepseek-v4-pro"
 
-API_KEY_ENV_NAMES = ("ZHIPU_API_KEY", "BIGMODEL_API_KEY", "OPENAI_API_KEY", "GLM_API_KEY")
+API_KEY_ENV_NAMES = ("DEEPSEEK_API_KEY", "ZHIPU_API_KEY", "BIGMODEL_API_KEY", "OPENAI_API_KEY", "GLM_API_KEY")
 LOCAL_CONFIG_NAMES = ("config.local.json", "config.json", ".coding-agent.json")
 
 _MISSING_KEY_HINT = (
@@ -117,7 +117,7 @@ class Config:
         if env_key:
             cfg.api_key = env_key
         for env_name, attr in (("ZHIPU_BASE_URL", "base_url"), ("OPENAI_BASE_URL", "base_url"),
-                               ("ZHIPU_MODEL", "model")):
+                               ("ZHIPU_MODEL", "model"), ("DEEPSEEK_BASE_URL", "base_url"), ("DEEPSEEK_MODEL", "model")):
             value = os.environ.get(env_name, "").strip()
             if value:
                 setattr(cfg, attr, value)

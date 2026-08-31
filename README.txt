@@ -5,9 +5,9 @@ https://github.com/lixiaoyin-spec/llm-code-agent
 
 二、如何运行
 1. 安装依赖：pip install -r requirements.txt（仅需 requests，Python 3.10+）
-2. 准备智谱 API Key（OpenAI 兼容）：
-   PowerShell：$env:ZHIPU_API_KEY="你的Key"
-   macOS/Linux：export ZHIPU_API_KEY=你的Key
+2. 准备 DeepSeek API Key（OpenAI 兼容）：
+   PowerShell：$env:DEEPSEEK_API_KEY="你的Key"
+   macOS/Linux：export DEEPSEEK_API_KEY=你的Key
    也可写入 config.local.json（已被 .gitignore 排除，不会入库）
 3. 运行：
    python agent.py "你的编程任务" --workspace demo
@@ -24,6 +24,6 @@ https://github.com/lixiaoyin-spec/llm-code-agent
 - 计划模式（--plan）：先出计划经确认再执行；思考过程可展示（--no-reasoning 关闭）。
 
 四、其它说明
-- 模型默认 glm-4.5-air，可用 --model 更换；--base-url 可切换任何 OpenAI 兼容服务；
+- 模型默认 deepseek-v4-pro，可用 --model 更换；--base-url 可切换任何 OpenAI 兼容服务；
 - 对话历史管理、工具定义与本地执行、输出解析、循环终止、错误处理等核心逻辑全部自行实现，未使用任何 agent 框架/SDK；
-- 测试：python -m unittest discover -s tests（65 个用例，离线可跑）。
+- 测试：python -m unittest discover -s tests（70 个用例，离线可跑）。

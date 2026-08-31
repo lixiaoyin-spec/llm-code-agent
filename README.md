@@ -1,6 +1,6 @@
 # Nihue -- 编程智能体（coding-agent）
 
-Nihue 是南京大学软件工程专业推免项目作品：个人独立设计并实现的编程智能体。它通过与智谱 GLM（OpenAI 兼容协议）交互，自主地读写文件、执行命令，完成交给它的编程任务——类似一个简化的 Claude Code / Codex。
+Nihue 是南京大学软件工程专业推免项目作品：个人独立设计并实现的编程智能体。它通过与 DeepSeek（OpenAI 兼容协议）交互，自主地读写文件、执行命令，完成交给它的编程任务——类似一个简化的 Claude Code / Codex。
 
 核心原则：**不依赖任何 agent 框架 / SDK**。仅使用 `requests` 做 HTTP 通信，对话历史与上下文管理、工具定义与本地执行、模型输出解析、循环终止条件、错误处理均为自行实现。
 
@@ -14,7 +14,7 @@ Nihue 是南京大学软件工程专业推免项目作品：个人独立设计�
 - 会话保存 / 恢复：历史落盘为 JSONL，`--resume` 随时续接；`/sessions` 方向键选择恢复（标题取首条用户消息），`/sessions resume <名称>` 直接切换
 - 技能（skill）：渐进式披露的指令包——启动只注入技能名与简介，模型按需 `use_skill` 拉取完整步骤；内置写测试/代码审查/提交整理三个示例技能
 - 计划模式：`--plan` 先输出计划、人工确认后执行
-- 思考过程展示：GLM 的 `reasoning_content` 以灰色实时显示（`--no-reasoning` 关闭）
+- 思考过程展示：模型的 `reasoning_content` 以灰色实时显示（`--no-reasoning` 关闭）
 
 ## 快速开始
 
@@ -24,22 +24,22 @@ Nihue 是南京大学软件工程专业推免项目作品：个人独立设计�
 pip install -r requirements.txt
 ```
 
-准备智谱 API Key（凭据只走环境变量或未入库的配置文件）：
+准备 DeepSeek API Key（凭据只走环境变量或未入库的配置文件）：
 
 ```powershell
 # Windows PowerShell
-$env:ZHIPU_API_KEY="你的Key"
+$env:DEEPSEEK_API_KEY="你的Key"
 ```
 
 ```bash
 # macOS / Linux
-export ZHIPU_API_KEY=你的Key
+export DEEPSEEK_API_KEY=你的Key
 ```
 
 也可以写入 `config.local.json`（已被 `.gitignore` 排除）：
 
 ```json
-{"api_key": "你的Key", "model": "glm-4.5-air"}
+{"api_key": "你的Key", "model": "deepseek-v4-pro"}
 ```
 
 运行：
@@ -76,8 +76,8 @@ function nihue { python "D:\你的路径\agent.py" @args }
 | --- | --- | --- |
 | `task` | 任务描述（留空进入交互模式） | - |
 | `-w, --workspace` | 工作目录，文件操作被限制在内 | 当前目录 |
-| `-m, --model` | 模型名（智谱控制台可用模型为准） | `glm-4.5-air` |
-| `--base-url` | OpenAI 兼容接口地址 | 智谱官方 |
+| `-m, --model` | 模型名（DeepSeek 平台可用模型为准） | `deepseek-v4-pro` |
+| `--base-url` | OpenAI 兼容接口地址 | DeepSeek 官方 |
 | `--api-key` | API Key（推荐用环境变量） | - |
 | `--max-turns` | 最大轮数 | 60 |
 | `--max-tokens` | 单次回复最大 token | 4096 |
@@ -162,6 +162,6 @@ python -m unittest discover -s tests -v   # 65 个用例
 
 ## 凭据与安全
 
-- API Key 只允许来自环境变量（`ZHIPU_API_KEY` 等）或 `config.local.json`（已 gitignore）；任何日志、会话文件都不会输出 Key
+- API Key 只允许来自环境变量（`DEEPSEEK_API_KEY` 等）或 `config.local.json`（已 gitignore）；任何日志、会话文件都不会输出 Key
 - 会话记录保存在 `~/.coding-agent/sessions/`，不进仓库
-- 若曾误提交 Key，请立即在智谱控制台作废更换（题目规则第 4 条）
+- 若曾误提交 Key，请立即在 DeepSeek 平台作废更换（题目规则第 4 条）

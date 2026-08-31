@@ -1,4 +1,4 @@
-"""智谱 BigModel 的 OpenAI 兼容协议客户端。
+"""DeepSeek 的 OpenAI 兼容协议客户端。
 
 只使用 requests 完成 HTTP 调用与 SSE 流式解析，不依赖任何 agent 框架/SDK。
 自行实现：
