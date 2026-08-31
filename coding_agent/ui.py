@@ -50,6 +50,34 @@ def _two_sides(left: str, right: str, width: int) -> str:
     return left + " " * gap + right
 
 
+def _wrap_display(text: str, width: int) -> list[str]:
+    """按终端显示宽度折行（全角字符按 2 列），返回每行分段。"""
+    if width <= 0:
+        return [text]
+    segments: list[str] = []
+    for raw_line in text.split("\n"):
+        current = ""
+        used = 0
+        for ch in raw_line:
+            w = 2 if ord(ch) > 0x2E80 else 1
+            if used + w > width:
+                segments.append(current)
+                current = ch
+                used = w
+            else:
+                current += ch
+                used += w
+        segments.append(current)
+    return segments
+
+
+def _format_duration(ms: int) -> str:
+    """把毫秒格式化为紧凑时长：ms / s / m。"""
+    if ms < 1000:
+        return f"{ms}ms"
+    if ms < 60_000:
+        return f"{ms / 1000:.1f}s"
+    return f"{ms // 60_000}m{ms % 60_000 // 1000}s"
 class UI:
     def __init__(self, color: bool = True, stream: TextIO | None = None):
         self.stream = stream or sys.stdout
@@ -84,6 +112,10 @@ class UI:
         if self._mid_line:
             self._write("\n")
 
+    def _term_width(self) -> int:
+        if self.color:
+            return max(40, min(shutil.get_terminal_size(fallback=(76, 24)).columns, 300))
+        return _BOX_WIDTH
     def logo(self) -> None:
         for line in LOGO.strip("\n").splitlines():
             self._write(self.paint("cyan", line) + "\n")
@@ -91,37 +123,89 @@ class UI:
 
     # ---- 流式输出 ----
     def stream_text(self, chunk: str) -> None:
+        self._flush_reasoning()
         if self._markdown is None:
             self._markdown = MarkdownStream(self)
         self._markdown.feed(chunk)
 
     def stream_reasoning(self, chunk: str) -> None:
+        if not chunk:
+            return
+        if not self.color:
+            if not getattr(self, "_reasoning_started", False):
+                if not chunk.strip():
+                    return
+                self.newline()
+                self._write("思考: ")
+                self._reasoning_started = True
+            self._write(chunk)
+            return
         if not getattr(self, "_reasoning_started", False):
             if not chunk.strip():
-                return  # 丢弃开头无可见内容的空白片段，避免出现孤立的"思考:"
+                return
             self.newline()
-            self._write(self.paint("dim", "思考: "))
+            self._reasoning_width = self._term_width()
+            self._reasoning_buf = ""
+            self._write(self.paint("dim", "┌─ 思考 " + "─" * max(0, self._reasoning_width - 7) + "┐") + "\n")
             self._reasoning_started = True
-        self._write(self.paint("dim", chunk))
+        self._reasoning_buf += chunk.replace("\r\n", "\n")
+        while "\n" in self._reasoning_buf:
+            line, self._reasoning_buf = self._reasoning_buf.split("\n", 1)
+            self._render_reasoning_line(line)
+
+    def _flush_reasoning(self) -> None:
+        if not getattr(self, "_reasoning_started", False):
+            return
+        if not self.color:
+            self._reasoning_started = False
+            return
+        if getattr(self, "_reasoning_buf", ""):
+            self._render_reasoning_line(self._reasoning_buf)
+        self._reasoning_buf = ""
+        self._write(self.paint("dim", "└" + "─" * max(0, self._reasoning_width - 2) + "┘") + "\n")
+        self._reasoning_started = False
+
+    def _render_reasoning_line(self, line: str) -> None:
+        inner = max(8, self._reasoning_width - 4)
+        for seg in _wrap_display(line, inner):
+            pad = self._reasoning_width - 3 - _display_width(seg)
+            self._write(self.paint("dim", "│ " + seg + " " * max(0, pad) + "│") + "\n")
 
     def end_turn(self) -> None:
-        self._reasoning_started = False
+        self._flush_reasoning()
         if self._markdown is not None:
             self._markdown.flush()
         self.newline()
-
     # ---- 常规输出 ----
     def turn_header(self, number: int, maximum: int) -> None:
         self.newline()
         self._write(self.paint("bold", f"==== 第 {number} 轮（上限 {maximum}）====\n"))
 
     def tool_call(self, name: str, args_preview: str) -> None:
-        self._write(self.paint("cyan", f">> {name}({args_preview})\n"))
+        self._flush_reasoning()
+        self.newline()
+        if not self.color:
+            self._write(f">> {name}({args_preview})\n")
+            return
+        line = self.paint("cyan", "▸ " + name)
+        if args_preview:
+            line += " " + self.paint("dim", args_preview)
+        self._write(line + "\n")
 
     def tool_result(self, name: str, ok: bool, preview: str, duration_ms: int) -> None:
-        marker = self.paint("green", "OK  ") if ok else self.paint("red", "FAIL")
-        self._write(f"  [{marker}] {name} ({duration_ms}ms) -> {preview}\n")
-
+        if not self.color:
+            marker = "OK" if ok else "FAIL"
+            self._write(f"  [{marker}] {name} ({duration_ms}ms) -> {preview}\n")
+            return
+        status = self.paint("green", "✓") if ok else self.paint("red", "✗")
+        prefix = "  " + status + " "
+        lead = "  " + ("✓" if ok else "✗") + " " + _format_duration(duration_ms) + " · "
+        cols = max(24, self._term_width() - _display_width(lead))
+        segments = _wrap_display(preview, cols)
+        self._write(prefix + self.paint("dim", _format_duration(duration_ms) + " · " + segments[0]) + "\n")
+        indent = " " * _display_width(lead)
+        for seg in segments[1:]:
+            self._write(indent + self.paint("dim", seg) + "\n")
     def info(self, text: str) -> None:
         self.newline()
         self._write(self.paint("dim", f"- {text}\n"))

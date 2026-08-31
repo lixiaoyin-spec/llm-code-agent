@@ -122,5 +122,48 @@ class MarkdownRenderTests(unittest.TestCase):
         self.assertIn("项目", out)
         self.assertEqual(out.count("标题"), 1)
 
+class ReasoningAndToolRenderTests(unittest.TestCase):
+    def test_reasoning_box_renders_and_closes(self):
+        stream = io.StringIO()
+        ui = UI(color=False, stream=stream)
+        ui.color = True
+        ui.stream_reasoning("用户想知道这是什么项目。\n我应该先查看目录结构。")
+        ui.end_turn()
+        out = stream.getvalue()
+        self.assertIn("┌─ 思考", out)
+        self.assertIn("│ 用户想知道这是什么项目。", out)
+        self.assertIn("│ 我应该先查看目录结构。", out)
+        self.assertEqual(out.count("└"), 1)
+
+    def test_reasoning_pipe_passthrough(self):
+        stream = io.StringIO()
+        ui = UI(color=False, stream=stream)
+        ui.stream_reasoning("\n\n用户想知道。")
+        ui.end_turn()
+        self.assertEqual(stream.getvalue(), "思考: \n\n用户想知道。\n")
+
+    def test_tool_call_and_result_styled(self):
+        stream = io.StringIO()
+        ui = UI(color=False, stream=stream)
+        ui.color = True
+        ui.tool_call("list_files", '{"path": "."}')
+        ui.tool_result("list_files", True, "file 16 demo_inputs.txt", 3)
+        ui.tool_result("run_command", False, "命令执行超时", 122368)
+        out = stream.getvalue()
+        self.assertIn("▸ list_files", out)
+        self.assertIn('{"path": "."}', out)
+        self.assertIn("✓", out)
+        self.assertIn("3ms · file 16 demo_inputs.txt", out)
+        self.assertIn("✗", out)
+        self.assertIn("2m2s", out)
+
+    def test_tool_output_pipe_passthrough(self):
+        stream = io.StringIO()
+        ui = UI(color=False, stream=stream)
+        ui.tool_call("read_file", '{"path":"a"}')
+        ui.tool_result("read_file", True, "内容", 5)
+        out = stream.getvalue()
+        self.assertEqual(out, '>> read_file({"path":"a"})\n  [OK] read_file (5ms) -> 内容\n')
+
 if __name__ == "__main__":
     unittest.main()
