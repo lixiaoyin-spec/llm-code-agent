@@ -138,15 +138,18 @@ class MarkdownRenderTests(unittest.TestCase):
         self.assertEqual(out.count("标题"), 1)
 
 class ReasoningAndToolRenderTests(unittest.TestCase):
-    def test_reasoning_summary_replaces_live_indicator(self):
+    def test_reasoning_streams_text_with_live_timer(self):
         stream = io.StringIO()
         ui = UI(color=False, stream=stream)
         ui.color = True
-        ui.stream_reasoning("用户想知道这是什么项目。我应该先查看目录结构。")
+        ui.stream_reasoning("用户想知道这是什么项目。\n我应该先查看目录结构。")
         ui.end_turn()
         out = stream.getvalue()
+        self.assertIn("✻ 思考", out)
         self.assertIn("✻ 思考中", out)
-        self.assertRegex(out, r"✻ 思考 \d+\.\d+s · 用户想知道")
+        self.assertIn("用户想知道这是什么项目。", out)
+        self.assertIn("我应该先查看目录结构。", out)
+        self.assertRegex(out, r"✻ 思考 \d+\.\d+s")
     def test_reasoning_pipe_passthrough(self):
         stream = io.StringIO()
         ui = UI(color=False, stream=stream)

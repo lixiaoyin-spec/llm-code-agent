@@ -81,24 +81,6 @@ def _format_duration(ms: int) -> str:
     return f"{ms // 60_000}m{ms % 60_000 // 1000}s"
 
 
-def _excerpt_text(text: str, max_cols: int = 60) -> str:
-    """压缩空白后的代表片段，按显示宽度截断并加省略号。"""
-    flat = " ".join(text.split())
-    if not flat:
-        return ""
-    if _display_width(flat) <= max_cols:
-        return flat
-    out = ""
-    used = 0
-    for ch in flat:
-        w = 2 if ord(ch) > 0x2E80 else 1
-        if used + w > max_cols - 1:
-            break
-        out += ch
-        used += w
-    return out + "…"
-
-
 def _collapse_preview(preview: str, cols: int, max_lines: int = 8, max_segments: int = 8) -> tuple[list[str], int]:
     """工具输出折叠：最多展示 max_lines 行（或 max_segments 个折行段），返回（分段, 未展示行数）。"""
     cols = max(8, cols)
@@ -190,12 +172,21 @@ class UI:
             self._reasoning_start = time.monotonic()
             self._reasoning_last = 0.0
             self._reasoning_buf = ""
-            self._write(self.paint("dim", "✻ 思考中"))
+            self._write(self.paint("dim", "✻ 思考") + "\n")
+            self._write(self.paint("dim", "✻ 思考中 0.0s"))
         self._reasoning_buf += chunk.replace("\r\n", "\n")
+        wrote_text = False
+        while "\n" in self._reasoning_buf:
+            line, self._reasoning_buf = self._reasoning_buf.split("\n", 1)
+            self._reasoning_text_line(line)
+            wrote_text = True
         now = time.monotonic()
-        if now - self._reasoning_last >= 0.2:
+        if wrote_text or now - self._reasoning_last >= 0.2:
             self._reasoning_last = now
-            self._write("\r\x1b[2K" + self.paint("dim", f"✻ 思考 {now - self._reasoning_start:.1f}s"))
+            self._write("\r\x1b[2K" + self.paint("dim", f"✻ 思考中 {now - self._reasoning_start:.1f}s"))
+
+    def _reasoning_text_line(self, line: str) -> None:
+        self._write("\r\x1b[2K" + self.paint("dim", line) + "\n")
 
     def _flush_reasoning(self) -> None:
         if not getattr(self, "_reasoning_started", False):
@@ -203,15 +194,12 @@ class UI:
         if not self.color:
             self._reasoning_started = False
             return
-        seconds = time.monotonic() - getattr(self, "_reasoning_start", 0.0)
-        max_cols = max(16, self._term_width() - 20)
-        excerpt = _excerpt_text(getattr(self, "_reasoning_buf", ""), max_cols)
-        text = f"✻ 思考 {seconds:.1f}s"
-        if excerpt:
-            text += " · " + excerpt
-        self._write("\r\x1b[2K" + self.paint("dim", text) + "\n")
-        self._reasoning_started = False
+        if getattr(self, "_reasoning_buf", ""):
+            self._reasoning_text_line(self._reasoning_buf)
         self._reasoning_buf = ""
+        seconds = time.monotonic() - getattr(self, "_reasoning_start", 0.0)
+        self._write("\r\x1b[2K" + self.paint("dim", f"✻ 思考 {seconds:.1f}s") + "\n")
+        self._reasoning_started = False
 
     def end_turn(self) -> None:
         self._flush_reasoning()
